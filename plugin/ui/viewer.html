@@ -2496,6 +2496,406 @@
         transform: translateX(16px);
       }
     }
+
+    /* ============================================
+       View Mode Toggle Button
+       ============================================ */
+    .view-mode-btn {
+      background: var(--color-bg-card);
+      border: 1px solid var(--color-border-primary);
+      border-radius: 6px;
+      padding: 0;
+      width: 36px;
+      height: 36px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--color-text-secondary);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+
+    .view-mode-btn:hover {
+      background: var(--color-bg-card-hover);
+      border-color: var(--color-border-focus);
+      color: var(--color-text-primary);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+    }
+
+    .view-mode-btn.active {
+      background: linear-gradient(135deg, var(--color-bg-button) 0%, var(--color-accent-primary) 100%);
+      border-color: var(--color-bg-button);
+      color: var(--color-text-button);
+      box-shadow: 0 2px 8px rgba(9, 105, 218, 0.25);
+    }
+
+    /* ============================================
+       Multi-Column Feed Layout
+       ============================================ */
+    .feed-multicolumn {
+      overflow-x: auto;
+      overflow-y: hidden;
+      justify-content: flex-start; /* Override center alignment to allow scrolling to leftmost column */
+    }
+
+    .feed-content-multicolumn {
+      display: flex;
+      flex-direction: row;
+      gap: 20px;
+      padding: 20px;
+      min-width: min-content;
+      max-width: none;
+      align-items: flex-start;
+    }
+
+    .session-column,
+    .project-column {
+      flex: 0 0 400px;
+      max-width: 400px;
+      min-width: 350px;
+      max-height: calc(100vh - 120px);
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .session-column::-webkit-scrollbar,
+    .project-column::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .session-column::-webkit-scrollbar-track,
+    .project-column::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .session-column::-webkit-scrollbar-thumb,
+    .project-column::-webkit-scrollbar-thumb {
+      background: var(--color-bg-scrollbar-thumb);
+      border-radius: 3px;
+    }
+
+    .session-column::-webkit-scrollbar-thumb:hover,
+    .project-column::-webkit-scrollbar-thumb:hover {
+      background: var(--color-bg-scrollbar-thumb-hover);
+    }
+
+    /* ============================================
+       Session Group Styles
+       ============================================ */
+    .session-group,
+    .project-group {
+      margin-bottom: 0;
+      background: var(--color-bg-card);
+      border: 1px solid var(--color-border-primary);
+      border-radius: 12px;
+      overflow: hidden;
+      transition: all 0.2s ease;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Non-multicolumn session group styling */
+    .feed-content:not(.feed-content-multicolumn) .session-group,
+    .feed-content:not(.feed-content-multicolumn) .project-group {
+      margin-bottom: 32px;
+      height: auto;
+    }
+
+    .session-group:hover,
+    .project-group:hover {
+      border-color: var(--color-border-hover);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .session-group.session-active,
+    .project-group.project-active {
+      border-color: var(--color-accent-primary);
+      box-shadow: 0 0 0 1px var(--color-accent-primary), 0 4px 16px rgba(9, 105, 218, 0.15);
+    }
+
+    .session-header,
+    .project-header {
+      background: var(--color-bg-header);
+      border-bottom: 1px solid var(--color-border-primary);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .session-header-content,
+    .project-header-content {
+      padding: 16px 20px;
+    }
+
+    .session-header-top,
+    .project-header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .session-header-left,
+    .project-header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .session-header-right,
+    .project-header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .session-status,
+    .project-status {
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .session-status.session-active,
+    .project-status.active {
+      background: rgba(22, 198, 12, 0.15);
+      color: var(--color-accent-success);
+    }
+
+    .session-status.session-complete {
+      background: var(--color-type-badge-bg);
+      color: var(--color-type-badge-text);
+    }
+
+    .session-project,
+    .project-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+    }
+
+    .session-count,
+    .project-count {
+      font-size: 12px;
+      color: var(--color-text-muted);
+      background: var(--color-bg-tertiary);
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    .session-date {
+      font-size: 12px;
+      color: var(--color-text-muted);
+      font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+    }
+
+    .session-collapse-btn,
+    .project-collapse-btn {
+      background: transparent;
+      border: 1px solid var(--color-border-primary);
+      border-radius: 4px;
+      width: 28px;
+      height: 28px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--color-text-muted);
+      transition: all 0.15s ease;
+      padding: 0;
+    }
+
+    .session-collapse-btn:hover,
+    .project-collapse-btn:hover {
+      background: var(--color-bg-card-hover);
+      border-color: var(--color-border-hover);
+      color: var(--color-text-primary);
+    }
+
+    /* Sticky Prompt Display */
+    .session-sticky-prompt,
+    .project-sticky-prompt {
+      margin-top: 14px;
+      padding: 14px 16px;
+      background: var(--color-bg-prompt);
+      border: 1px solid var(--color-border-prompt);
+      border-radius: 8px;
+      animation: slideIn 0.3s ease-out;
+    }
+
+    .sticky-prompt-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--color-accent-prompt);
+      margin-bottom: 8px;
+    }
+
+    .sticky-prompt-text {
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--color-text-primary);
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      max-height: 100px;
+      overflow-y: auto;
+    }
+
+    /* Project Items Container - Simple Card List */
+    .session-timeline,
+    .project-items-container {
+      padding: 12px;
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+    }
+
+    .project-item {
+      margin-bottom: 12px;
+    }
+
+    .project-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .project-item .card {
+      margin-bottom: 0;
+      width: 100%;
+    }
+
+    /* Collapsed Summary */
+    .session-collapsed-summary,
+    .project-collapsed-summary {
+      padding: 16px 20px;
+      background: var(--color-bg-tertiary);
+    }
+
+    .collapsed-prompt {
+      font-size: 14px;
+      color: var(--color-text-primary);
+      line-height: 1.5;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 8px;
+    }
+
+    .collapsed-result {
+      font-size: 13px;
+      color: var(--color-text-secondary);
+      line-height: 1.5;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .collapsed-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .collapsed-date {
+      font-size: 12px;
+      color: var(--color-text-muted);
+      font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+    }
+
+    .collapsed-stats {
+      font-size: 11px;
+      color: var(--color-text-tertiary);
+    }
+
+    /* Responsive adjustments for session groups */
+    @media (max-width: 900px) {
+      .feed-content-multicolumn {
+        gap: 16px;
+        padding: 16px;
+      }
+
+      .session-column,
+      .project-column {
+        flex: 0 0 320px;
+        max-width: 320px;
+        min-width: 280px;
+      }
+    }
+
+    @media (max-width: 600px) {
+      /* On mobile, stack columns vertically */
+      .feed-multicolumn {
+        overflow-x: hidden;
+        overflow-y: auto;
+      }
+
+      .feed-content-multicolumn {
+        flex-direction: column;
+        gap: 16px;
+        padding: 12px;
+      }
+
+      .session-column,
+      .project-column {
+        flex: none;
+        max-width: 100%;
+        min-width: 100%;
+        max-height: none;
+        overflow-y: visible;
+      }
+
+      .session-group,
+      .project-group {
+        height: auto;
+        margin-bottom: 16px;
+        border-radius: 8px;
+      }
+
+      .session-header-content,
+      .project-header-content {
+        padding: 12px 14px;
+      }
+
+      .session-header-top,
+      .project-header-top {
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .session-sticky-prompt,
+      .project-sticky-prompt {
+        margin-top: 10px;
+        padding: 10px 12px;
+      }
+
+      .sticky-prompt-text {
+        font-size: 13px;
+      }
+
+      .session-timeline,
+      .project-items-container {
+        padding: 10px;
+        overflow-y: visible;
+      }
+
+      .project-item {
+        margin-bottom: 10px;
+      }
+
+      .view-mode-btn {
+        width: 32px;
+        height: 32px;
+      }
+    }
   </style>
 </head>
 

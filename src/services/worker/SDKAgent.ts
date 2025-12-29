@@ -15,7 +15,7 @@ import { DatabaseManager } from './DatabaseManager.js';
 import { SessionManager } from './SessionManager.js';
 import { logger } from '../../utils/logger.js';
 import { parseObservations, parseSummary } from '../../sdk/parser.js';
-import { buildInitPrompt, buildObservationPrompt, buildSummaryPrompt, buildContinuationPrompt } from '../../sdk/prompts.js';
+import { buildInitPrompt, buildObservationPrompt, buildSummaryPrompt, buildContinuationPrompt, type PromptLanguage } from '../../sdk/prompts.js';
 import { SettingsDefaultsManager } from '../../shared/SettingsDefaultsManager.js';
 import { USER_SETTINGS_PATH } from '../../shared/paths.js';
 import type { ActiveSession, SDKUserMessage, PendingMessage } from '../worker-types.js';
@@ -185,6 +185,9 @@ export class SDKAgent {
    * - We just use the session_id we're given - simple and reliable
    */
   private async *createMessageGenerator(session: ActiveSession): AsyncIterableIterator<SDKUserMessage> {
+    // Get language setting for prompts
+    const language = this.getLanguage() as PromptLanguage;
+
     // Yield initial user prompt with context (or continuation if prompt #2+)
     // CRITICAL: Both paths use session.claudeSessionId from the hook
     yield {
@@ -192,8 +195,8 @@ export class SDKAgent {
       message: {
         role: 'user',
         content: session.lastPromptNumber === 1
-          ? buildInitPrompt(session.project, session.claudeSessionId, session.userPrompt)
-          : buildContinuationPrompt(session.userPrompt, session.lastPromptNumber, session.claudeSessionId)
+          ? buildInitPrompt(session.project, session.claudeSessionId, session.userPrompt, language)
+          : buildContinuationPrompt(session.userPrompt, session.lastPromptNumber, session.claudeSessionId, language)
       },
       session_id: session.claudeSessionId,
       parent_tool_use_id: null,
@@ -237,7 +240,7 @@ export class SDKAgent {
               user_prompt: session.userPrompt,
               last_user_message: message.last_user_message || '',
               last_assistant_message: message.last_assistant_message || ''
-            })
+            }, language)
           },
           session_id: session.claudeSessionId,
           parent_tool_use_id: null,
@@ -462,5 +465,14 @@ export class SDKAgent {
     const settingsPath = path.join(homedir(), '.claude-mem', 'settings.json');
     const settings = SettingsDefaultsManager.loadFromFile(settingsPath);
     return settings.CLAUDE_MEM_MODEL;
+  }
+
+  /**
+   * Get language setting for prompts ('en' or 'ja')
+   */
+  private getLanguage(): string {
+    const settingsPath = path.join(homedir(), '.claude-mem', 'settings.json');
+    const settings = SettingsDefaultsManager.loadFromFile(settingsPath);
+    return settings.CLAUDE_MEM_LANGUAGE;
   }
 }

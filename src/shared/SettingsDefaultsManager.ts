@@ -13,6 +13,7 @@ import { logger } from '../utils/logger.js';
 
 export interface SettingsDefaults {
   CLAUDE_MEM_MODEL: string;
+  CLAUDE_MEM_LANGUAGE: string;
   CLAUDE_MEM_CONTEXT_OBSERVATIONS: string;
   CLAUDE_MEM_WORKER_PORT: string;
   CLAUDE_MEM_WORKER_HOST: string;
@@ -45,6 +46,7 @@ export class SettingsDefaultsManager {
    */
   private static readonly DEFAULTS: SettingsDefaults = {
     CLAUDE_MEM_MODEL: 'claude-sonnet-4-5',
+    CLAUDE_MEM_LANGUAGE: 'en',
     CLAUDE_MEM_CONTEXT_OBSERVATIONS: '50',
     CLAUDE_MEM_WORKER_PORT: '37777',
     CLAUDE_MEM_WORKER_HOST: '127.0.0.1',

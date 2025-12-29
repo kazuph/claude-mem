@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Header } from './components/Header';
-import { Feed } from './components/Feed';
+import { Feed, ViewMode } from './components/Feed';
 import { ContextSettingsModal } from './components/ContextSettingsModal';
 import { useSSE } from './hooks/useSSE';
 import { useSettings } from './hooks/useSettings';
@@ -13,6 +13,7 @@ import { mergeAndDeduplicateByProject } from './utils/data';
 export function App() {
   const [currentFilter, setCurrentFilter] = useState('');
   const [contextPreviewOpen, setContextPreviewOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('grouped'); // Default to grouped view
   const [paginatedObservations, setPaginatedObservations] = useState<Observation[]>([]);
   const [paginatedSummaries, setPaginatedSummaries] = useState<Summary[]>([]);
   const [paginatedPrompts, setPaginatedPrompts] = useState<UserPrompt[]>([]);
@@ -97,6 +98,8 @@ export function App() {
         themePreference={preference}
         onThemeChange={setThemePreference}
         onContextPreviewToggle={toggleContextPreview}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
       />
 
       <Feed
@@ -106,6 +109,7 @@ export function App() {
         onLoadMore={handleLoadMore}
         isLoading={pagination.observations.isLoading || pagination.summaries.isLoading || pagination.prompts.isLoading}
         hasMore={pagination.observations.hasMore || pagination.summaries.hasMore || pagination.prompts.hasMore}
+        viewMode={viewMode}
       />
 
       <ContextSettingsModal
