@@ -48,9 +48,9 @@ export class SettingsDefaultsManager {
    * Default values for all settings
    */
   private static readonly DEFAULTS: SettingsDefaults = {
-    CLAUDE_MEM_MODEL: 'claude-sonnet-4-5',
+    CLAUDE_MEM_MODEL: 'claude-haiku-3-5',  // Haiku is ~10x cheaper, sufficient for observation extraction
     CLAUDE_MEM_LANGUAGE: 'en',
-    CLAUDE_MEM_CONTEXT_OBSERVATIONS: '50',
+    CLAUDE_MEM_CONTEXT_OBSERVATIONS: '30',  // Reduced from 50 for token savings
     CLAUDE_MEM_WORKER_PORT: '37777',
     CLAUDE_MEM_WORKER_HOST: '127.0.0.1',
     CLAUDE_MEM_SKIP_TOOLS: 'ListMcpResourcesTool,SlashCommand,Skill,TodoWrite,AskUserQuestion',
