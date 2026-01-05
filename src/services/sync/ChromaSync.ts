@@ -6,6 +6,10 @@
  * a vector database synchronized with SQLite.
  *
  * Design: Fail-fast with no fallbacks - if Chroma is unavailable, syncing fails.
+ *
+ * Embedding Models:
+ * - 'default': MiniLM-L6-v2 (English-focused, 384 dims)
+ * - 'ruri': cl-nagoya/ruri-v3-70m (Japanese-optimized, 384 dims)
  */
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -15,6 +19,7 @@ import { SessionStore } from '../sqlite/SessionStore.js';
 import { logger } from '../../utils/logger.js';
 import { SettingsDefaultsManager } from '../../shared/SettingsDefaultsManager.js';
 import { USER_SETTINGS_PATH } from '../../shared/paths.js';
+import { EmbeddingClient } from '../embedding/EmbeddingClient.js';
 import path from 'path';
 import os from 'os';
 
@@ -70,6 +75,9 @@ interface StoredUserPrompt {
   project: string;
 }
 
+// Supported embedding models
+export type EmbeddingModel = 'default' | 'ruri';
+
 export class ChromaSync {
   private client: Client | null = null;
   private transport: StdioClientTransport | null = null;
@@ -79,10 +87,33 @@ export class ChromaSync {
   private readonly VECTOR_DB_DIR: string;
   private readonly BATCH_SIZE = 100;
 
+  // Custom embedding support
+  private embeddingClient: EmbeddingClient | null = null;
+  private embeddingModel: EmbeddingModel;
+  private static readonly RURI_MODEL = 'cl-nagoya/ruri-v3-70m';
+
   constructor(project: string) {
     this.project = project;
     this.collectionName = `cm__${project}`;
     this.VECTOR_DB_DIR = path.join(os.homedir(), '.claude-mem', 'vector-db');
+
+    // Load embedding configuration from settings
+    const settings = SettingsDefaultsManager.loadFromFile(USER_SETTINGS_PATH);
+    this.embeddingModel = (settings.CLAUDE_MEM_EMBEDDING_MODEL as EmbeddingModel) || 'ruri';
+    const embeddingPort = parseInt(settings.CLAUDE_MEM_EMBEDDING_PORT || '37778', 10);
+
+    // Initialize embedding client if using ruri
+    if (this.embeddingModel === 'ruri') {
+      this.embeddingClient = new EmbeddingClient(
+        '127.0.0.1',
+        embeddingPort,
+        ChromaSync.RURI_MODEL
+      );
+      logger.info('CHROMA_SYNC', 'Using ruri-v3-70m Japanese embeddings', {
+        project,
+        port: embeddingPort
+      });
+    }
   }
 
   /**
@@ -322,6 +353,7 @@ export class ChromaSync {
 
   /**
    * Add documents to Chroma in batch
+   * If using ruri embeddings, computes custom embeddings and updates them
    * Throws error if batch add fails
    */
   private async addDocuments(documents: ChromaDocument[]): Promise<void> {
@@ -339,6 +371,7 @@ export class ChromaSync {
     }
 
     try {
+      // Step 1: Add documents (will auto-embed with default function)
       await this.client.callTool({
         name: 'chroma_add_documents',
         arguments: {
@@ -353,12 +386,61 @@ export class ChromaSync {
         collection: this.collectionName,
         count: documents.length
       });
+
+      // Step 2: If using ruri embeddings, compute and update with custom embeddings
+      if (this.embeddingModel === 'ruri' && this.embeddingClient) {
+        await this.updateWithCustomEmbeddings(documents);
+      }
     } catch (error) {
       logger.error('CHROMA_SYNC', 'Failed to add documents', {
         collection: this.collectionName,
         count: documents.length
       }, error as Error);
       throw new Error(`Document add failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * Compute custom embeddings using ruri-v3-70m and update documents
+   */
+  private async updateWithCustomEmbeddings(documents: ChromaDocument[]): Promise<void> {
+    if (!this.embeddingClient || !this.client) {
+      return;
+    }
+
+    try {
+      // Extract texts from documents
+      const texts = documents.map(d => d.document);
+
+      // Compute embeddings using ruri-v3-70m
+      logger.debug('CHROMA_SYNC', 'Computing ruri embeddings', {
+        collection: this.collectionName,
+        count: texts.length
+      });
+
+      const embeddings = await this.embeddingClient.embed(texts);
+
+      // Update documents with custom embeddings
+      await this.client.callTool({
+        name: 'chroma_update_documents',
+        arguments: {
+          collection_name: this.collectionName,
+          ids: documents.map(d => d.id),
+          embeddings: embeddings
+        }
+      });
+
+      logger.debug('CHROMA_SYNC', 'Documents updated with ruri embeddings', {
+        collection: this.collectionName,
+        count: documents.length,
+        embeddingDim: embeddings[0]?.length
+      });
+    } catch (error) {
+      // Log error but don't fail the sync - fallback to default embeddings
+      logger.warn('CHROMA_SYNC', 'Failed to update with ruri embeddings, using default', {
+        collection: this.collectionName,
+        count: documents.length
+      }, error as Error);
     }
   }
 
@@ -843,6 +925,16 @@ export class ChromaSync {
    * Close the Chroma client connection and cleanup subprocess
    */
   async close(): Promise<void> {
+    // Close embedding client if it exists
+    if (this.embeddingClient) {
+      try {
+        this.embeddingClient.stopServer();
+      } catch (error) {
+        logger.warn('CHROMA_SYNC', 'Error stopping embedding server', { project: this.project }, error as Error);
+      }
+      this.embeddingClient = null;
+    }
+
     if (!this.connected && !this.client && !this.transport) {
       return;
     }
@@ -873,5 +965,12 @@ export class ChromaSync {
       this.client = null;
       this.transport = null;
     }
+  }
+
+  /**
+   * Get the current embedding model
+   */
+  getEmbeddingModel(): EmbeddingModel {
+    return this.embeddingModel;
   }
 }

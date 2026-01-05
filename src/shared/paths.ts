@@ -36,6 +36,9 @@ export const USER_SETTINGS_PATH = join(DATA_DIR, 'settings.json');
 export const DB_PATH = join(DATA_DIR, 'claude-mem.db');
 export const VECTOR_DB_DIR = join(DATA_DIR, 'vector-db');
 
+// Plugin directories (where bundled scripts run from)
+export const PLUGIN_SCRIPTS_DIR = _dirname;
+
 // Claude integration paths
 export const CLAUDE_SETTINGS_PATH = join(CLAUDE_CONFIG_DIR, 'settings.json');
 export const CLAUDE_COMMANDS_DIR = join(CLAUDE_CONFIG_DIR, 'commands');

@@ -23,6 +23,9 @@ export interface SettingsDefaults {
   CLAUDE_MEM_LOG_LEVEL: string;
   CLAUDE_MEM_PYTHON_VERSION: string;
   CLAUDE_CODE_PATH: string;
+  // Embedding Configuration
+  CLAUDE_MEM_EMBEDDING_MODEL: string;  // 'default' (MiniLM) or 'ruri' (ruri-v3-70m)
+  CLAUDE_MEM_EMBEDDING_PORT: string;   // Port for embedding server (default: 37778)
   // Token Economics
   CLAUDE_MEM_CONTEXT_SHOW_READ_TOKENS: string;
   CLAUDE_MEM_CONTEXT_SHOW_WORK_TOKENS: string;
@@ -56,6 +59,9 @@ export class SettingsDefaultsManager {
     CLAUDE_MEM_LOG_LEVEL: 'INFO',
     CLAUDE_MEM_PYTHON_VERSION: '3.13',
     CLAUDE_CODE_PATH: '', // Empty means auto-detect via 'which claude'
+    // Embedding Configuration
+    CLAUDE_MEM_EMBEDDING_MODEL: 'ruri', // 'default' (MiniLM-L6-v2) or 'ruri' (ruri-v3-70m, Japanese-optimized)
+    CLAUDE_MEM_EMBEDDING_PORT: '37778', // Port for embedding server
     // Token Economics
     CLAUDE_MEM_CONTEXT_SHOW_READ_TOKENS: 'true',
     CLAUDE_MEM_CONTEXT_SHOW_WORK_TOKENS: 'true',
