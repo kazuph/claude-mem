@@ -39,6 +39,10 @@ export const VECTOR_DB_DIR = join(DATA_DIR, 'vector-db');
 // Plugin directories (where bundled scripts run from)
 export const PLUGIN_SCRIPTS_DIR = _dirname;
 
+// Marketplace root (dynamically resolved from script location)
+// This ensures the path works regardless of the marketplace folder name
+export const MARKETPLACE_ROOT = join(_dirname, '..', '..');
+
 // Claude integration paths
 export const CLAUDE_SETTINGS_PATH = join(CLAUDE_CONFIG_DIR, 'settings.json');
 export const CLAUDE_COMMANDS_DIR = join(CLAUDE_CONFIG_DIR, 'commands');

@@ -2,14 +2,12 @@ import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync } from '
 import { createWriteStream } from 'fs';
 import { join } from 'path';
 import { spawn, spawnSync } from 'child_process';
-import { homedir } from 'os';
-import { DATA_DIR } from '../../shared/paths.js';
+import { DATA_DIR, MARKETPLACE_ROOT } from '../../shared/paths.js';
 import { getBunPath, isBunAvailable } from '../../utils/bun-path.js';
 import { SettingsDefaultsManager } from '../../shared/SettingsDefaultsManager.js';
 
 const PID_FILE = join(DATA_DIR, 'worker.pid');
 const LOG_DIR = join(DATA_DIR, 'logs');
-const MARKETPLACE_ROOT = join(homedir(), '.claude', 'plugins', 'marketplaces', 'thedotmack');
 
 interface PidInfo {
   pid: number;

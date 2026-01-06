@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 SOURCE_DIR="plugin/"
-DEST_DIR="$HOME/.claude/plugins/marketplaces/thedotmack/plugin/"
+DEST_DIR="$HOME/.claude/plugins/marketplaces/kazuph-claude-mem-jp/plugin/"
 
 # Function to print colored output
 print_status() {

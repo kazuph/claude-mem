@@ -13,6 +13,7 @@ import * as fs from 'fs';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { getWorkerPort, getWorkerHost } from '../shared/worker-utils.js';
+import { MARKETPLACE_ROOT } from '../shared/paths.js';
 import { logger } from '../utils/logger.js';
 import { exec, execSync } from 'child_process';
 import { promisify } from 'util';
@@ -155,10 +156,8 @@ export class WorkerService {
 
     // Version endpoint - returns the worker's current version
     this.app.get('/api/version', (_req, res) => {
-      const { homedir } = require('os');
       const { readFileSync } = require('fs');
-      const marketplaceRoot = path.join(homedir(), '.claude', 'plugins', 'marketplaces', 'thedotmack');
-      const packageJsonPath = path.join(marketplaceRoot, 'package.json');
+      const packageJsonPath = path.join(MARKETPLACE_ROOT, 'package.json');
 
       try {
         // Read version from marketplace package.json

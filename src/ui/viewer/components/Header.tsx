@@ -65,7 +65,7 @@ export function Header({
             height="40"
           />
         </a>
-        <GitHubStarsButton username="thedotmack" repo="claude-mem" />
+        <GitHubStarsButton username="kazuph" repo="claude-mem" />
         <a
           href="https://discord.gg/J4wttp9vDu"
           target="_blank"

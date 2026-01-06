@@ -7,10 +7,13 @@
  */
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { execSync, spawnSync } from 'child_process';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { homedir } from 'os';
+import { fileURLToPath } from 'url';
 
-const ROOT = join(homedir(), '.claude', 'plugins', 'marketplaces', 'thedotmack');
+// Dynamically resolve ROOT from script location (works regardless of marketplace folder name)
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const ROOT = dirname(__dirname);
 const MARKER = join(ROOT, '.install-version');
 const IS_WINDOWS = process.platform === 'win32';
 
