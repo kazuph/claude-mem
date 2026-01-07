@@ -18,6 +18,7 @@ export interface SettingsDefaults {
   CLAUDE_MEM_WORKER_PORT: string;
   CLAUDE_MEM_WORKER_HOST: string;
   CLAUDE_MEM_SKIP_TOOLS: string;
+  CLAUDE_MEM_ALLOW_TOOLS: string;  // Whitelist: if set, ONLY these tools are observed (takes priority over SKIP_TOOLS)
   // System Configuration
   CLAUDE_MEM_DATA_DIR: string;
   CLAUDE_MEM_LOG_LEVEL: string;
@@ -49,11 +50,12 @@ export class SettingsDefaultsManager {
    */
   private static readonly DEFAULTS: SettingsDefaults = {
     CLAUDE_MEM_MODEL: 'haiku',  // Haiku is ~10x cheaper, sufficient for observation extraction
-    CLAUDE_MEM_LANGUAGE: 'en',
-    CLAUDE_MEM_CONTEXT_OBSERVATIONS: '30',  // Reduced from 50 for token savings
+    CLAUDE_MEM_LANGUAGE: 'ja',  // Japanese output for observations and summaries
+    CLAUDE_MEM_CONTEXT_OBSERVATIONS: '15',  // Token-efficient: reduced for lower context injection cost
     CLAUDE_MEM_WORKER_PORT: '37777',
     CLAUDE_MEM_WORKER_HOST: '127.0.0.1',
     CLAUDE_MEM_SKIP_TOOLS: 'ListMcpResourcesTool,SlashCommand,Skill,TodoWrite,AskUserQuestion',
+    CLAUDE_MEM_ALLOW_TOOLS: 'Edit,Write,MultiEdit',  // Whitelist: only observe file edit operations for token efficiency
     // System Configuration
     CLAUDE_MEM_DATA_DIR: join(homedir(), '.claude-mem'),
     CLAUDE_MEM_LOG_LEVEL: 'INFO',
@@ -71,9 +73,9 @@ export class SettingsDefaultsManager {
     CLAUDE_MEM_CONTEXT_OBSERVATION_TYPES: DEFAULT_OBSERVATION_TYPES_STRING,
     CLAUDE_MEM_CONTEXT_OBSERVATION_CONCEPTS: DEFAULT_OBSERVATION_CONCEPTS_STRING,
     // Display Configuration
-    CLAUDE_MEM_CONTEXT_FULL_COUNT: '5',
+    CLAUDE_MEM_CONTEXT_FULL_COUNT: '3',  // Token-efficient: reduced detailed observation count
     CLAUDE_MEM_CONTEXT_FULL_FIELD: 'narrative',
-    CLAUDE_MEM_CONTEXT_SESSION_COUNT: '10',
+    CLAUDE_MEM_CONTEXT_SESSION_COUNT: '5',  // Token-efficient: reduced session summary count
     // Feature Toggles
     CLAUDE_MEM_CONTEXT_SHOW_LAST_SUMMARY: 'true',
     CLAUDE_MEM_CONTEXT_SHOW_LAST_MESSAGE: 'false',

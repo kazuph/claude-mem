@@ -263,15 +263,26 @@ export class SessionRoutes extends BaseRouteHandler {
       return this.badRequest(res, 'Missing claudeSessionId');
     }
 
-    // Load skip tools from settings
+    // Load tool filter settings
     const settings = SettingsDefaultsManager.loadFromFile(USER_SETTINGS_PATH);
-    const skipTools = new Set(settings.CLAUDE_MEM_SKIP_TOOLS.split(',').map(t => t.trim()).filter(Boolean));
+    const allowToolsStr = settings.CLAUDE_MEM_ALLOW_TOOLS?.trim() || '';
 
-    // Skip low-value or meta tools
-    if (skipTools.has(tool_name)) {
-      logger.debug('SESSION', 'Skipping observation for tool', { tool_name });
-      res.json({ status: 'skipped', reason: 'tool_excluded' });
-      return;
+    // Whitelist takes priority: if ALLOW_TOOLS is set, ONLY those tools are observed
+    if (allowToolsStr) {
+      const allowTools = new Set(allowToolsStr.split(',').map(t => t.trim()).filter(Boolean));
+      if (!allowTools.has(tool_name)) {
+        logger.debug('SESSION', 'Skipping observation - tool not in whitelist', { tool_name });
+        res.json({ status: 'skipped', reason: 'not_in_whitelist' });
+        return;
+      }
+    } else {
+      // Fallback to blacklist (SKIP_TOOLS)
+      const skipTools = new Set(settings.CLAUDE_MEM_SKIP_TOOLS.split(',').map(t => t.trim()).filter(Boolean));
+      if (skipTools.has(tool_name)) {
+        logger.debug('SESSION', 'Skipping observation for tool', { tool_name });
+        res.json({ status: 'skipped', reason: 'tool_excluded' });
+        return;
+      }
     }
 
     // Skip meta-observations: file operations on session-memory files

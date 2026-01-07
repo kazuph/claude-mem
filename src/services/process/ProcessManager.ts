@@ -2,9 +2,12 @@ import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync } from '
 import { createWriteStream } from 'fs';
 import { join } from 'path';
 import { spawn, spawnSync } from 'child_process';
-import { DATA_DIR, MARKETPLACE_ROOT } from '../../shared/paths.js';
+import { DATA_DIR, PLUGIN_SCRIPTS_DIR } from '../../shared/paths.js';
 import { getBunPath, isBunAvailable } from '../../utils/bun-path.js';
 import { SettingsDefaultsManager } from '../../shared/SettingsDefaultsManager.js';
+
+// Package root is one level up from scripts directory
+const PACKAGE_ROOT = join(PLUGIN_SCRIPTS_DIR, '..');
 
 const PID_FILE = join(DATA_DIR, 'worker.pid');
 const LOG_DIR = join(DATA_DIR, 'logs');
@@ -38,7 +41,9 @@ export class ProcessManager {
     // On Windows, use the wrapper script to solve zombie port problem
     // On Unix, use the worker directly
     const scriptName = process.platform === 'win32' ? 'worker-wrapper.cjs' : 'worker-service.cjs';
-    const workerScript = join(MARKETPLACE_ROOT, 'plugin', 'scripts', scriptName);
+    // Use PLUGIN_SCRIPTS_DIR which is the directory where hooks and worker are located
+    // This works for both marketplace (plugin/scripts/) and cache (7.4.6/scripts/) structures
+    const workerScript = join(PLUGIN_SCRIPTS_DIR, scriptName);
 
     if (!existsSync(workerScript)) {
       return { success: false, error: `Worker script not found at ${workerScript}` };
@@ -90,7 +95,7 @@ export class ProcessManager {
         // all values for PowerShell to follow security best practices.
         const escapedBunPath = this.escapePowerShellString(bunPath);
         const escapedScript = this.escapePowerShellString(script);
-        const escapedWorkDir = this.escapePowerShellString(MARKETPLACE_ROOT);
+        const escapedWorkDir = this.escapePowerShellString(PACKAGE_ROOT);
         const escapedLogFile = this.escapePowerShellString(logFile);
         const envVars = `$env:CLAUDE_MEM_WORKER_PORT='${port}'`;
         const psCommand = `${envVars}; Start-Process -FilePath '${escapedBunPath}' -ArgumentList '${escapedScript}' -WorkingDirectory '${escapedWorkDir}' -WindowStyle Hidden -RedirectStandardOutput '${escapedLogFile}' -RedirectStandardError '${escapedLogFile}.err' -PassThru | Select-Object -ExpandProperty Id`;
@@ -129,7 +134,7 @@ export class ProcessManager {
           detached: true,
           stdio: ['ignore', 'pipe', 'pipe'],
           env: { ...process.env, CLAUDE_MEM_WORKER_PORT: String(port) },
-          cwd: MARKETPLACE_ROOT
+          cwd: PACKAGE_ROOT
         });
 
         // Write logs
