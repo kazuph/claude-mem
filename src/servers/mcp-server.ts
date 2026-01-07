@@ -20,6 +20,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { logger } from '../utils/logger.js';
 import { getWorkerPort, getWorkerHost } from '../shared/worker-utils.js';
+import { basename } from 'path';
 
 /**
  * Worker HTTP API configuration
@@ -27,6 +28,33 @@ import { getWorkerPort, getWorkerHost } from '../shared/worker-utils.js';
 const WORKER_PORT = getWorkerPort();
 const WORKER_HOST = getWorkerHost();
 const WORKER_BASE_URL = `http://${WORKER_HOST}:${WORKER_PORT}`;
+
+/**
+ * Get the current project name from environment
+ * Claude Code sets PWD to the user's working directory
+ * Returns undefined if the project name looks invalid (e.g., version numbers, "plugin", "scripts")
+ */
+function getCurrentProject(): string | undefined {
+  const pwd = process.env.PWD || process.env.OLDPWD;
+  if (!pwd) {
+    return undefined;
+  }
+
+  const projectName = basename(pwd);
+
+  // Filter out invalid project names that are likely plugin/cache directories
+  const invalidNames = ['plugin', 'scripts', 'node_modules', 'cache', 'marketplaces', '.claude'];
+  if (invalidNames.includes(projectName)) {
+    return undefined;
+  }
+
+  // Filter out version numbers (e.g., "7.4.6", "1.0.0")
+  if (/^\d+\.\d+\.\d+$/.test(projectName)) {
+    return undefined;
+  }
+
+  return projectName;
+}
 
 /**
  * Map tool names to Worker HTTP endpoints
@@ -117,6 +145,14 @@ async function callWorkerAPI(
   try {
     const searchParams = new URLSearchParams();
 
+    // Inject current project if not explicitly provided
+    if (!params.project) {
+      const currentProject = getCurrentProject();
+      if (currentProject) {
+        params = { ...params, project: currentProject };
+      }
+    }
+
     // Convert params to query string
     for (const [key, value] of Object.entries(params)) {
       if (value !== undefined && value !== null) {
@@ -201,6 +237,14 @@ async function callWorkerAPIPost(
   logger.debug('HTTP', 'Worker API request (POST)', undefined, { endpoint });
 
   try {
+    // Inject current project if not explicitly provided
+    if (!body.project) {
+      const currentProject = getCurrentProject();
+      if (currentProject) {
+        body = { ...body, project: currentProject };
+      }
+    }
+
     const url = `${WORKER_BASE_URL}${endpoint}`;
     const response = await fetch(url, {
       method: 'POST',

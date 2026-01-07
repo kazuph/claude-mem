@@ -834,6 +834,22 @@ export class SessionStore {
   }
 
   /**
+   * Get the most recently active project
+   * Used as fallback when project cannot be determined from environment
+   */
+  getMostRecentProject(): string | null {
+    const stmt = this.db.prepare(`
+      SELECT project
+      FROM sdk_sessions
+      WHERE project IS NOT NULL AND project != ''
+      ORDER BY started_at_epoch DESC
+      LIMIT 1
+    `);
+    const result = stmt.get() as { project: string } | undefined;
+    return result?.project || null;
+  }
+
+  /**
    * Get observations for a specific session
    */
   getObservationsForSession(sdkSessionId: string): Array<{
