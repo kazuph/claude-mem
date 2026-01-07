@@ -36,6 +36,7 @@ interface ContextConfig {
   totalObservationCount: number;
   fullObservationCount: number;
   sessionCount: number;
+  userPromptsCount: number;
 
   // Token display toggles
   showReadTokens: boolean;
@@ -66,6 +67,7 @@ function loadContextConfig(): ContextConfig {
       totalObservationCount: parseInt(settings.CLAUDE_MEM_CONTEXT_OBSERVATIONS, 10),
       fullObservationCount: parseInt(settings.CLAUDE_MEM_CONTEXT_FULL_COUNT, 10),
       sessionCount: parseInt(settings.CLAUDE_MEM_CONTEXT_SESSION_COUNT, 10),
+      userPromptsCount: parseInt(settings.CLAUDE_MEM_CONTEXT_USER_PROMPTS_COUNT || '5', 10),
       showReadTokens: settings.CLAUDE_MEM_CONTEXT_SHOW_READ_TOKENS === 'true',
       showWorkTokens: settings.CLAUDE_MEM_CONTEXT_SHOW_WORK_TOKENS === 'true',
       showSavingsAmount: settings.CLAUDE_MEM_CONTEXT_SHOW_SAVINGS_AMOUNT === 'true',
@@ -87,6 +89,7 @@ function loadContextConfig(): ContextConfig {
       totalObservationCount: 50,
       fullObservationCount: 5,
       sessionCount: 10,
+      userPromptsCount: 5,
       showReadTokens: true,
       showWorkTokens: true,
       showSavingsAmount: true,
@@ -151,6 +154,15 @@ interface SessionSummary {
   learned: string | null;
   completed: string | null;
   next_steps: string | null;
+  created_at: string;
+  created_at_epoch: number;
+}
+
+interface UserPrompt {
+  id: number;
+  claude_session_id: string;
+  prompt_number: number;
+  prompt_text: string;
   created_at: string;
   created_at_epoch: number;
 }
@@ -276,6 +288,18 @@ export async function generateContext(input?: ContextInput, useColors: boolean =
     LIMIT ?
   `).all(project, config.sessionCount + SUMMARY_LOOKAHEAD) as SessionSummary[];
 
+  // Get recent user prompts (join with sdk_sessions to filter by project)
+  const userPrompts = config.userPromptsCount > 0
+    ? db.db.prepare(`
+        SELECT up.id, up.claude_session_id, up.prompt_number, up.prompt_text, up.created_at, up.created_at_epoch
+        FROM user_prompts up
+        JOIN sdk_sessions s ON up.claude_session_id = s.claude_session_id
+        WHERE s.project = ?
+        ORDER BY up.created_at_epoch DESC
+        LIMIT ?
+      `).all(project, config.userPromptsCount) as UserPrompt[]
+    : [];
+
   // Retrieve prior session messages if enabled
   let priorUserMessage = '';
   let priorAssistantMessage = '';
@@ -321,6 +345,33 @@ export async function generateContext(input?: ContextInput, useColors: boolean =
     output.push('');
   } else {
     output.push(`# [${project}] recent context`);
+    output.push('');
+  }
+
+  // Recent User Prompts Section
+  if (userPrompts.length > 0) {
+    if (useColors) {
+      output.push(`${colors.bright}${colors.yellow}📝 Recent Requests${colors.reset}`);
+      output.push('');
+    } else {
+      output.push(`## 📝 Recent Requests`);
+      output.push('');
+    }
+
+    // Display prompts in chronological order (oldest first)
+    const chronologicalPrompts = [...userPrompts].reverse();
+    for (const prompt of chronologicalPrompts) {
+      const time = formatTime(prompt.created_at);
+      const truncatedText = prompt.prompt_text.length > 200
+        ? prompt.prompt_text.substring(0, 200) + '...'
+        : prompt.prompt_text;
+
+      if (useColors) {
+        output.push(`${colors.dim}${time}${colors.reset} ${truncatedText}`);
+      } else {
+        output.push(`- **${time}**: ${truncatedText}`);
+      }
+    }
     output.push('');
   }
 

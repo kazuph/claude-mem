@@ -42,6 +42,8 @@ export interface SettingsDefaults {
   // Feature Toggles
   CLAUDE_MEM_CONTEXT_SHOW_LAST_SUMMARY: string;
   CLAUDE_MEM_CONTEXT_SHOW_LAST_MESSAGE: string;
+  // User Prompts
+  CLAUDE_MEM_CONTEXT_USER_PROMPTS_COUNT: string;  // Number of recent user prompts to inject (0 = disabled)
 }
 
 export class SettingsDefaultsManager {
@@ -79,6 +81,8 @@ export class SettingsDefaultsManager {
     // Feature Toggles
     CLAUDE_MEM_CONTEXT_SHOW_LAST_SUMMARY: 'true',
     CLAUDE_MEM_CONTEXT_SHOW_LAST_MESSAGE: 'false',
+    // User Prompts
+    CLAUDE_MEM_CONTEXT_USER_PROMPTS_COUNT: '5',  // Inject recent user prompts for session continuity
   };
 
   /**
