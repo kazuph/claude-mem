@@ -81,7 +81,7 @@ export function Header({
           value={currentFilter}
           onChange={e => onFilterChange(e.target.value)}
         >
-          <option value="">All Projects</option>
+          <option value="">全プロジェクト</option>
           {projects.map(project => (
             <option key={project} value={project}>{project}</option>
           ))}
