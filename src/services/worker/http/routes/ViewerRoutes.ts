@@ -8,7 +8,7 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
 import { readFileSync, existsSync } from 'fs';
-import { getPackageRoot } from '../../../../shared/paths.js';
+import { getPackageRoot, PLUGIN_SCRIPTS_DIR } from '../../../../shared/paths.js';
 import { SSEBroadcaster } from '../../SSEBroadcaster.js';
 import { DatabaseManager } from '../../DatabaseManager.js';
 import { SessionManager } from '../../SessionManager.js';
@@ -42,16 +42,25 @@ export class ViewerRoutes extends BaseRouteHandler {
   private handleViewerUI = this.wrapHandler((req: Request, res: Response): void => {
     const packageRoot = getPackageRoot();
 
-    // Try cache structure first (ui/viewer.html), then marketplace structure (plugin/ui/viewer.html)
+    // Try multiple structures:
+    // 1. marketplace structure: plugin/ui/viewer.html (getPackageRoot = marketplace root)
+    // 2. cache structure: ui/viewer.html (getPackageRoot = version dir)
+    // 3. cache structure with version subdir: when scripts/ is inside version dir,
+    //    getPackageRoot goes 2 levels up and misses the version dir
+    //    e.g., .../claude-mem/7.4.6/scripts/ -> getPackageRoot = .../claude-mem/
+    //    but ui is at .../claude-mem/7.4.6/ui/
     const viewerPaths = [
       path.join(packageRoot, 'ui', 'viewer.html'),
-      path.join(packageRoot, 'plugin', 'ui', 'viewer.html')
+      path.join(packageRoot, 'plugin', 'ui', 'viewer.html'),
+      // For cache structure: when scripts/ is inside version dir (e.g., 7.4.6/scripts/),
+      // look in sibling ui/ directory (7.4.6/ui/)
+      path.resolve(PLUGIN_SCRIPTS_DIR, '..', 'ui', 'viewer.html'),
     ];
 
     const viewerPath = viewerPaths.find(p => existsSync(p));
 
     if (!viewerPath) {
-      throw new Error('Viewer UI not found at any expected location');
+      throw new Error(`Viewer UI not found at any expected location. Tried: ${viewerPaths.join(', ')}`);
     }
 
     const html = readFileSync(viewerPath, 'utf-8');
