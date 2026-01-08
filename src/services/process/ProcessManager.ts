@@ -5,6 +5,7 @@ import { spawn, spawnSync } from 'child_process';
 import { DATA_DIR, PLUGIN_SCRIPTS_DIR } from '../../shared/paths.js';
 import { getBunPath, isBunAvailable } from '../../utils/bun-path.js';
 import { SettingsDefaultsManager } from '../../shared/SettingsDefaultsManager.js';
+import { logger } from '../../utils/logger.js';
 
 // Package root is one level up from scripts directory
 const PACKAGE_ROOT = join(PLUGIN_SCRIPTS_DIR, '..');
