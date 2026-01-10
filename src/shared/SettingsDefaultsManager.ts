@@ -56,8 +56,8 @@ export class SettingsDefaultsManager {
     CLAUDE_MEM_CONTEXT_OBSERVATIONS: '15',  // Token-efficient: reduced for lower context injection cost
     CLAUDE_MEM_WORKER_PORT: '37777',
     CLAUDE_MEM_WORKER_HOST: '127.0.0.1',
-    CLAUDE_MEM_SKIP_TOOLS: 'ListMcpResourcesTool,SlashCommand,Skill,TodoWrite,AskUserQuestion',
-    CLAUDE_MEM_ALLOW_TOOLS: 'Edit,Write,MultiEdit,TodoWrite',  // Whitelist: observe file edits and TODO changes for session continuity
+    CLAUDE_MEM_SKIP_TOOLS: 'ListMcpResourcesTool,SlashCommand,Skill',
+    CLAUDE_MEM_ALLOW_TOOLS: 'Edit,Write,MultiEdit,TodoWrite,Bash,AskUserQuestion',  // Whitelist: observe file edits, TODO changes, bash output, and user Q&A for session continuity
     // System Configuration
     CLAUDE_MEM_DATA_DIR: join(homedir(), '.claude-mem'),
     CLAUDE_MEM_LOG_LEVEL: 'INFO',

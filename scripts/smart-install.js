@@ -2,8 +2,9 @@
 /**
  * Smart Install Script for claude-mem
  *
- * Ensures Bun runtime and uv (Python package manager) are installed
- * (auto-installs if missing) and handles dependency installation when needed.
+ * Uses mise to manage runtime dependencies (bun, python).
+ * Auto-installs mise if missing, then installs required runtimes.
+ * Also ensures viewer.html is built if missing.
  */
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { execSync, spawnSync } from 'child_process';
@@ -17,51 +18,50 @@ const ROOT = dirname(__dirname);
 const MARKER = join(ROOT, '.install-version');
 const IS_WINDOWS = process.platform === 'win32';
 
-// Common installation paths (handles fresh installs before PATH reload)
-const BUN_COMMON_PATHS = IS_WINDOWS
-  ? [join(homedir(), '.bun', 'bin', 'bun.exe')]
-  : [join(homedir(), '.bun', 'bin', 'bun'), '/usr/local/bin/bun'];
+// Common installation paths for mise
+const MISE_COMMON_PATHS = IS_WINDOWS
+  ? [join(homedir(), '.local', 'bin', 'mise.exe')]
+  : [join(homedir(), '.local', 'bin', 'mise'), '/usr/local/bin/mise', join(homedir(), '.mise', 'bin', 'mise')];
 
-const UV_COMMON_PATHS = IS_WINDOWS
-  ? [join(homedir(), '.local', 'bin', 'uv.exe'), join(homedir(), '.cargo', 'bin', 'uv.exe')]
-  : [join(homedir(), '.local', 'bin', 'uv'), join(homedir(), '.cargo', 'bin', 'uv'), '/usr/local/bin/uv'];
+// Shims paths for mise-managed tools
+const MISE_SHIMS_PATH = join(homedir(), '.local', 'share', 'mise', 'shims');
 
 /**
- * Get the Bun executable path (from PATH or common install locations)
+ * Get the mise executable path
  */
-function getBunPath() {
+function getMisePath() {
   // Try PATH first
   try {
-    const result = spawnSync('bun', ['--version'], {
+    const result = spawnSync('mise', ['--version'], {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: IS_WINDOWS
     });
-    if (result.status === 0) return 'bun';
+    if (result.status === 0) return 'mise';
   } catch {
     // Not in PATH
   }
 
   // Check common installation paths
-  return BUN_COMMON_PATHS.find(existsSync) || null;
+  return MISE_COMMON_PATHS.find(existsSync) || null;
 }
 
 /**
- * Check if Bun is installed and accessible
+ * Check if mise is installed
  */
-function isBunInstalled() {
-  return getBunPath() !== null;
+function isMiseInstalled() {
+  return getMisePath() !== null;
 }
 
 /**
- * Get Bun version if installed
+ * Get mise version if installed
  */
-function getBunVersion() {
-  const bunPath = getBunPath();
-  if (!bunPath) return null;
+function getMiseVersion() {
+  const misePath = getMisePath();
+  if (!misePath) return null;
 
   try {
-    const result = spawnSync(bunPath, ['--version'], {
+    const result = spawnSync(misePath, ['--version'], {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: IS_WINDOWS
@@ -73,137 +73,131 @@ function getBunVersion() {
 }
 
 /**
- * Get the uv executable path (from PATH or common install locations)
+ * Install mise automatically
  */
-function getUvPath() {
-  // Try PATH first
-  try {
-    const result = spawnSync('uv', ['--version'], {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-      shell: IS_WINDOWS
-    });
-    if (result.status === 0) return 'uv';
-  } catch {
-    // Not in PATH
-  }
-
-  // Check common installation paths
-  return UV_COMMON_PATHS.find(existsSync) || null;
-}
-
-/**
- * Check if uv is installed and accessible
- */
-function isUvInstalled() {
-  return getUvPath() !== null;
-}
-
-/**
- * Get uv version if installed
- */
-function getUvVersion() {
-  const uvPath = getUvPath();
-  if (!uvPath) return null;
-
-  try {
-    const result = spawnSync(uvPath, ['--version'], {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-      shell: IS_WINDOWS
-    });
-    return result.status === 0 ? result.stdout.trim() : null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Install Bun automatically based on platform
- */
-function installBun() {
-  console.error('🔧 Bun not found. Installing Bun runtime...');
+function installMise() {
+  console.error('🔧 mise not found. Installing mise...');
 
   try {
     if (IS_WINDOWS) {
       console.error('   Installing via PowerShell...');
-      execSync('powershell -c "irm bun.sh/install.ps1 | iex"', {
+      execSync('powershell -ExecutionPolicy ByPass -c "irm https://mise.run | iex"', {
         stdio: 'inherit',
         shell: true
       });
     } else {
       console.error('   Installing via curl...');
-      execSync('curl -fsSL https://bun.sh/install | bash', {
+      execSync('curl https://mise.run | sh', {
         stdio: 'inherit',
         shell: true
       });
     }
 
-    if (!isBunInstalled()) {
+    if (!isMiseInstalled()) {
       throw new Error(
-        'Bun installation completed but binary not found. ' +
+        'mise installation completed but binary not found. ' +
         'Please restart your terminal and try again.'
       );
     }
 
-    const version = getBunVersion();
-    console.error(`✅ Bun ${version} installed successfully`);
+    const version = getMiseVersion();
+    console.error(`✅ mise ${version} installed successfully`);
   } catch (error) {
-    console.error('❌ Failed to install Bun');
+    console.error('❌ Failed to install mise');
     console.error('   Please install manually:');
-    if (IS_WINDOWS) {
-      console.error('   - winget install Oven-sh.Bun');
-      console.error('   - Or: powershell -c "irm bun.sh/install.ps1 | iex"');
-    } else {
-      console.error('   - curl -fsSL https://bun.sh/install | bash');
-      console.error('   - Or: brew install oven-sh/bun/bun');
-    }
+    console.error('   - curl https://mise.run | sh');
+    console.error('   - Or: brew install mise (macOS)');
     console.error('   Then restart your terminal and try again.');
     throw error;
   }
 }
 
 /**
- * Install uv automatically based on platform
+ * Get executable path, checking both PATH and mise shims
  */
-function installUv() {
-  console.error('🐍 Installing uv for Python/Chroma support...');
+function getToolPath(tool) {
+  // Try PATH first
+  try {
+    const result = spawnSync(tool, ['--version'], {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      shell: IS_WINDOWS
+    });
+    if (result.status === 0) return tool;
+  } catch {
+    // Not in PATH
+  }
+
+  // Check mise shims
+  const shimPath = IS_WINDOWS
+    ? join(MISE_SHIMS_PATH, `${tool}.exe`)
+    : join(MISE_SHIMS_PATH, tool);
+
+  if (existsSync(shimPath)) return shimPath;
+
+  // Check common paths for bun
+  if (tool === 'bun') {
+    const bunPaths = IS_WINDOWS
+      ? [join(homedir(), '.bun', 'bin', 'bun.exe')]
+      : [join(homedir(), '.bun', 'bin', 'bun'), '/usr/local/bin/bun'];
+    const found = bunPaths.find(existsSync);
+    if (found) return found;
+  }
+
+  return null;
+}
+
+/**
+ * Get tool version
+ */
+function getToolVersion(tool) {
+  const toolPath = getToolPath(tool);
+  if (!toolPath) return null;
 
   try {
-    if (IS_WINDOWS) {
-      console.error('   Installing via PowerShell...');
-      execSync('powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"', {
-        stdio: 'inherit',
-        shell: true
-      });
+    const result = spawnSync(toolPath, ['--version'], {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      shell: IS_WINDOWS
+    });
+    return result.status === 0 ? result.stdout.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Install a tool using mise
+ */
+function installWithMise(tool, version = 'latest') {
+  const misePath = getMisePath();
+  if (!misePath) {
+    throw new Error('mise not found');
+  }
+
+  console.error(`🔧 Installing ${tool} via mise...`);
+
+  try {
+    // Use mise use -g to install globally
+    execSync(`${misePath} use -g ${tool}@${version}`, {
+      stdio: 'inherit',
+      shell: IS_WINDOWS
+    });
+
+    // Reshim to ensure shims are created
+    execSync(`${misePath} reshim`, {
+      stdio: 'inherit',
+      shell: IS_WINDOWS
+    });
+
+    const installedVersion = getToolVersion(tool);
+    if (installedVersion) {
+      console.error(`✅ ${tool} ${installedVersion} installed successfully`);
     } else {
-      console.error('   Installing via curl...');
-      execSync('curl -LsSf https://astral.sh/uv/install.sh | sh', {
-        stdio: 'inherit',
-        shell: true
-      });
+      console.error(`✅ ${tool} installed (version check pending PATH reload)`);
     }
-
-    if (!isUvInstalled()) {
-      throw new Error(
-        'uv installation completed but binary not found. ' +
-        'Please restart your terminal and try again.'
-      );
-    }
-
-    const version = getUvVersion();
-    console.error(`✅ uv ${version} installed successfully`);
   } catch (error) {
-    console.error('❌ Failed to install uv');
-    console.error('   Please install manually:');
-    if (IS_WINDOWS) {
-      console.error('   - winget install astral-sh.uv');
-      console.error('   - Or: powershell -c "irm https://astral.sh/uv/install.ps1 | iex"');
-    } else {
-      console.error('   - curl -LsSf https://astral.sh/uv/install.sh | sh');
-      console.error('   - Or: brew install uv (macOS)');
-    }
-    console.error('   Then restart your terminal and try again.');
+    console.error(`❌ Failed to install ${tool} via mise`);
     throw error;
   }
 }
@@ -216,17 +210,30 @@ function needsInstall() {
   try {
     const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf-8'));
     const marker = JSON.parse(readFileSync(MARKER, 'utf-8'));
-    return pkg.version !== marker.version || getBunVersion() !== marker.bun;
+    return pkg.version !== marker.version || getToolVersion('bun') !== marker.bun;
   } catch {
     return true;
   }
 }
 
 /**
+ * Check if viewer.html needs to be built
+ * Handles both source directory (scripts/) and marketplace (plugin/scripts/) structures
+ */
+function needsViewerBuild() {
+  // Check multiple possible locations
+  const viewerPaths = [
+    join(ROOT, 'ui', 'viewer.html'),           // marketplace structure: plugin/ui/viewer.html
+    join(ROOT, 'plugin', 'ui', 'viewer.html'), // source structure: ./plugin/ui/viewer.html
+  ];
+  return !viewerPaths.some(existsSync);
+}
+
+/**
  * Install dependencies using Bun
  */
 function installDeps() {
-  const bunPath = getBunPath();
+  const bunPath = getToolPath('bun');
   if (!bunPath) {
     throw new Error('Bun executable not found');
   }
@@ -242,19 +249,81 @@ function installDeps() {
   const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf-8'));
   writeFileSync(MARKER, JSON.stringify({
     version: pkg.version,
-    bun: getBunVersion(),
-    uv: getUvVersion(),
+    bun: getToolVersion('bun'),
+    python: getToolVersion('python'),
+    mise: getMiseVersion(),
     installedAt: new Date().toISOString()
   }));
 }
 
+/**
+ * Build viewer.html if source exists
+ * Handles both source directory (scripts/) and marketplace (plugin/scripts/) structures
+ */
+function buildViewer() {
+  // Try multiple possible build configurations
+  const buildConfigs = [
+    // Source directory structure: ROOT = project root, build from there
+    {
+      buildScript: join(ROOT, 'scripts', 'build-hooks.js'),
+      srcViewer: join(ROOT, 'src', 'ui', 'viewer'),
+      cwd: ROOT
+    },
+    // Marketplace structure: ROOT = plugin/, build from parent
+    {
+      buildScript: join(ROOT, '..', 'scripts', 'build-hooks.js'),
+      srcViewer: join(ROOT, '..', 'src', 'ui', 'viewer'),
+      cwd: join(ROOT, '..')
+    }
+  ];
+
+  const config = buildConfigs.find(c => existsSync(c.buildScript) && existsSync(c.srcViewer));
+
+  if (config) {
+    console.error('🔨 Building viewer.html...');
+    try {
+      execSync('npm run build', {
+        cwd: config.cwd,
+        stdio: 'inherit',
+        shell: IS_WINDOWS
+      });
+      console.error('✅ Viewer built successfully');
+    } catch (error) {
+      console.error('⚠️ Failed to build viewer:', error.message);
+      // Don't throw - viewer is optional
+    }
+  } else {
+    console.error('⚠️ viewer.html missing but build source not found');
+    console.error('   This may indicate an incomplete plugin installation.');
+  }
+}
+
 // Main execution
 try {
-  if (!isBunInstalled()) installBun();
-  if (!isUvInstalled()) installUv();
+  // Step 1: Ensure mise is installed
+  if (!isMiseInstalled()) {
+    installMise();
+  }
+
+  // Step 2: Ensure bun is installed via mise
+  if (!getToolPath('bun')) {
+    installWithMise('bun');
+  }
+
+  // Step 3: Ensure python is installed via mise (for Chroma/embeddings)
+  if (!getToolPath('python')) {
+    installWithMise('python', '3.13');
+  }
+
+  // Step 4: Install npm dependencies if needed
   if (needsInstall()) {
     installDeps();
     console.error('✅ Dependencies installed');
+  }
+
+  // Step 5: Build viewer if missing
+  if (needsViewerBuild()) {
+    buildViewer();
   }
 } catch (e) {
   console.error('❌ Installation failed:', e.message);
