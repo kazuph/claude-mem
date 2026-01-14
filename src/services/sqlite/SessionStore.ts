@@ -41,6 +41,7 @@ export class SessionStore {
     this.createUserPromptsTable();
     this.ensureDiscoveryTokensColumn();
     this.createPendingMessagesTable();
+    this.createRawToolResultsTable();
   }
 
   /**
@@ -597,6 +598,50 @@ export class SessionStore {
       console.log('[SessionStore] pending_messages table created successfully');
     } catch (error: any) {
       console.error('[SessionStore] Pending messages table migration error:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Create raw_tool_results table for SDK OFF mode storage (migration 17)
+   * Stores AskUserQuestion responses, TodoWrite changes, and Claude responses
+   * without SDK processing to save tokens
+   */
+  private createRawToolResultsTable(): void {
+    try {
+      // Check if migration already applied
+      const applied = this.db.prepare('SELECT version FROM schema_versions WHERE version = ?').get(17) as SchemaVersion | undefined;
+      if (applied) return;
+
+      // Check if table already exists
+      const tables = this.db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='raw_tool_results'").all() as TableNameRow[];
+      if (tables.length > 0) {
+        this.db.prepare('INSERT OR IGNORE INTO schema_versions (version, applied_at) VALUES (?, ?)').run(17, new Date().toISOString());
+        return;
+      }
+
+      console.log('[SessionStore] Creating raw_tool_results table...');
+
+      this.db.run(`
+        CREATE TABLE raw_tool_results (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          session_id TEXT NOT NULL,
+          tool_name TEXT NOT NULL,
+          tool_input TEXT,
+          tool_result TEXT,
+          created_at TEXT DEFAULT (datetime('now'))
+        )
+      `);
+
+      this.db.run('CREATE INDEX IF NOT EXISTS idx_raw_tool_results_session ON raw_tool_results(session_id)');
+      this.db.run('CREATE INDEX IF NOT EXISTS idx_raw_tool_results_tool ON raw_tool_results(tool_name)');
+      this.db.run('CREATE INDEX IF NOT EXISTS idx_raw_tool_results_created ON raw_tool_results(created_at)');
+
+      this.db.prepare('INSERT OR IGNORE INTO schema_versions (version, applied_at) VALUES (?, ?)').run(17, new Date().toISOString());
+
+      console.log('[SessionStore] raw_tool_results table created successfully');
+    } catch (error: any) {
+      console.error('[SessionStore] Raw tool results table migration error:', error.message);
       throw error;
     }
   }
@@ -2048,5 +2093,39 @@ export class SessionStore {
     );
 
     return { imported: true, id: result.lastInsertRowid as number };
+  }
+
+  /**
+   * Save raw tool result (for SDK OFF mode)
+   * Stores AskUserQuestion responses and TodoWrite changes without SDK processing
+   */
+  saveRawToolResult(
+    sessionId: string,
+    toolName: string,
+    toolInput: string,
+    toolResult: string
+  ): number {
+    const stmt = this.db.prepare(`
+      INSERT INTO raw_tool_results (session_id, tool_name, tool_input, tool_result)
+      VALUES (?, ?, ?, ?)
+    `);
+    const result = stmt.run(sessionId, toolName, toolInput, toolResult);
+    return result.lastInsertRowid as number;
+  }
+
+  /**
+   * Save Claude's response to user (for SDK OFF mode)
+   * Stores the assistant message without SDK summarization
+   */
+  saveClaudeResponse(
+    sessionId: string,
+    response: string
+  ): number {
+    const stmt = this.db.prepare(`
+      INSERT INTO raw_tool_results (session_id, tool_name, tool_input, tool_result)
+      VALUES (?, 'ClaudeResponse', '', ?)
+    `);
+    const result = stmt.run(sessionId, response);
+    return result.lastInsertRowid as number;
   }
 }

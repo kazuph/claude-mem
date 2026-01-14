@@ -449,6 +449,19 @@ export function ContextSettingsModal({
               description="Model selection and integrations"
               defaultOpen={false}
             >
+              <div className="toggle-group" style={{ marginBottom: '16px' }}>
+                <ToggleSwitch
+                  id="sdk-enabled"
+                  label="SDK Processing"
+                  description="When OFF, saves tokens by skipping AI observation extraction"
+                  checked={formState.CLAUDE_MEM_SDK_ENABLED !== 'false'}
+                  onChange={() => {
+                    const newValue = formState.CLAUDE_MEM_SDK_ENABLED === 'false' ? 'true' : 'false';
+                    updateSetting('CLAUDE_MEM_SDK_ENABLED', newValue);
+                  }}
+                />
+              </div>
+
               <FormField
                 label="Model"
                 tooltip="AI model used for generating observations"

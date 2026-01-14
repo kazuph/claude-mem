@@ -19,6 +19,7 @@ export interface SettingsDefaults {
   CLAUDE_MEM_WORKER_HOST: string;
   CLAUDE_MEM_SKIP_TOOLS: string;
   CLAUDE_MEM_ALLOW_TOOLS: string;  // Whitelist: if set, ONLY these tools are observed (takes priority over SKIP_TOOLS)
+  CLAUDE_MEM_SDK_ENABLED: string;  // 'true' or 'false' - when false, observations are stored but not processed by SDK (saves tokens)
   // System Configuration
   CLAUDE_MEM_DATA_DIR: string;
   CLAUDE_MEM_LOG_LEVEL: string;
@@ -51,13 +52,14 @@ export class SettingsDefaultsManager {
    * Default values for all settings
    */
   private static readonly DEFAULTS: SettingsDefaults = {
-    CLAUDE_MEM_MODEL: 'haiku',  // Haiku is ~10x cheaper, sufficient for observation extraction
+    CLAUDE_MEM_MODEL: 'haiku',  // Shorthand resolved by Claude Code (haiku/sonnet/opus)
     CLAUDE_MEM_LANGUAGE: 'ja',  // Japanese output for observations and summaries
     CLAUDE_MEM_CONTEXT_OBSERVATIONS: '15',  // Token-efficient: reduced for lower context injection cost
     CLAUDE_MEM_WORKER_PORT: '37777',
     CLAUDE_MEM_WORKER_HOST: '127.0.0.1',
     CLAUDE_MEM_SKIP_TOOLS: 'ListMcpResourcesTool,SlashCommand,Skill',
     CLAUDE_MEM_ALLOW_TOOLS: 'Edit,Write,MultiEdit,TodoWrite,Bash,AskUserQuestion',  // Whitelist: observe file edits, TODO changes, bash output, and user Q&A for session continuity
+    CLAUDE_MEM_SDK_ENABLED: 'true',  // When false, tool results are stored raw but not processed by SDK (saves tokens)
     // System Configuration
     CLAUDE_MEM_DATA_DIR: join(homedir(), '.claude-mem'),
     CLAUDE_MEM_LOG_LEVEL: 'INFO',

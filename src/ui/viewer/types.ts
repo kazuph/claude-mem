@@ -78,6 +78,9 @@ export interface Settings {
   // Feature Toggles
   CLAUDE_MEM_CONTEXT_SHOW_LAST_SUMMARY?: string;
   CLAUDE_MEM_CONTEXT_SHOW_LAST_MESSAGE?: string;
+
+  // SDK Processing
+  CLAUDE_MEM_SDK_ENABLED?: string;  // 'true' or 'false' - when false, saves tokens by skipping SDK observation processing
 }
 
 export interface WorkerStats {

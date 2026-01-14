@@ -496,6 +496,38 @@ export const migration007: Migration = {
 };
 
 /**
+ * Migration 008: Add raw_tool_results table for SDK OFF mode storage
+ * Stores AskUserQuestion responses and TodoWrite changes without SDK processing
+ */
+export const migration008: Migration = {
+  version: 8,
+
+  up: (db: Database) => {
+    db.run(`
+      CREATE TABLE IF NOT EXISTS raw_tool_results (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL,
+        tool_name TEXT NOT NULL,
+        tool_input TEXT,
+        tool_result TEXT,
+        created_at TEXT DEFAULT (datetime('now'))
+      )
+    `);
+
+    db.run(`CREATE INDEX IF NOT EXISTS idx_raw_tool_results_session ON raw_tool_results(session_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_raw_tool_results_tool ON raw_tool_results(tool_name)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_raw_tool_results_created ON raw_tool_results(created_at)`);
+
+    console.log('✅ Created raw_tool_results table for SDK OFF mode storage');
+  },
+
+  down: (db: Database) => {
+    db.run(`DROP TABLE IF EXISTS raw_tool_results`);
+    console.log('✅ Dropped raw_tool_results table');
+  }
+};
+
+/**
  * All migrations in order
  */
 export const migrations: Migration[] = [
@@ -505,5 +537,6 @@ export const migrations: Migration[] = [
   migration004,
   migration005,
   migration006,
-  migration007
+  migration007,
+  migration008
 ];

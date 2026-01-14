@@ -265,6 +265,32 @@ export class SessionRoutes extends BaseRouteHandler {
 
     // Load tool filter settings
     const settings = SettingsDefaultsManager.loadFromFile(USER_SETTINGS_PATH);
+
+    // Check if SDK processing is enabled (saves tokens when disabled)
+    const sdkEnabled = settings.CLAUDE_MEM_SDK_ENABLED !== 'false';
+
+    // SDK OFF mode: Still save critical tools (AskUserQuestion, TodoWrite) to raw_tool_results
+    const criticalTools = new Set(['AskUserQuestion', 'TodoWrite']);
+    if (!sdkEnabled) {
+      if (criticalTools.has(tool_name)) {
+        // Save to raw_tool_results table
+        const store = this.dbManager.getSessionStore();
+        try {
+          const inputStr = tool_input ? JSON.stringify(tool_input) : '';
+          const resultStr = tool_response ? JSON.stringify(tool_response) : '';
+          store.saveRawToolResult(claudeSessionId, tool_name, inputStr, resultStr);
+          logger.info('SESSION', 'Saved critical tool result (SDK OFF)', { tool_name, claudeSessionId });
+          res.json({ status: 'saved_raw', tool_name });
+          return;
+        } catch (error) {
+          logger.error('SESSION', 'Failed to save raw tool result', { tool_name }, error);
+        }
+      }
+      logger.debug('SESSION', 'SDK processing disabled - skipping observation', { tool_name });
+      res.json({ status: 'skipped', reason: 'sdk_disabled' });
+      return;
+    }
+
     const allowToolsStr = settings.CLAUDE_MEM_ALLOW_TOOLS?.trim() || '';
 
     // Whitelist takes priority: if ALLOW_TOOLS is set, ONLY those tools are observed
@@ -377,6 +403,27 @@ export class SessionRoutes extends BaseRouteHandler {
 
     if (!claudeSessionId) {
       return this.badRequest(res, 'Missing claudeSessionId');
+    }
+
+    // Check if SDK processing is enabled (saves tokens when disabled)
+    const settings = SettingsDefaultsManager.loadFromFile(USER_SETTINGS_PATH);
+    const sdkEnabled = settings.CLAUDE_MEM_SDK_ENABLED !== 'false';
+    if (!sdkEnabled) {
+      // SDK OFF mode: Still save Claude's response to raw_tool_results
+      if (last_assistant_message) {
+        const store = this.dbManager.getSessionStore();
+        try {
+          store.saveClaudeResponse(claudeSessionId, last_assistant_message);
+          logger.info('SESSION', 'Saved Claude response (SDK OFF)', { claudeSessionId });
+          res.json({ status: 'saved_raw', type: 'claude_response' });
+          return;
+        } catch (error) {
+          logger.error('SESSION', 'Failed to save Claude response', {}, error);
+        }
+      }
+      logger.debug('SESSION', 'SDK processing disabled - skipping summarize');
+      res.json({ status: 'skipped', reason: 'sdk_disabled' });
+      return;
     }
 
     const store = this.dbManager.getSessionStore();

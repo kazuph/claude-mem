@@ -26,4 +26,7 @@ export const DEFAULT_SETTINGS = {
   // Feature Toggles
   CLAUDE_MEM_CONTEXT_SHOW_LAST_SUMMARY: 'true',
   CLAUDE_MEM_CONTEXT_SHOW_LAST_MESSAGE: 'false',
+
+  // SDK Processing
+  CLAUDE_MEM_SDK_ENABLED: 'true',  // When false, saves tokens by skipping SDK observation processing
 } as const;

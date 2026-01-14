@@ -105,6 +105,8 @@ export class SettingsRoutes extends BaseRouteHandler {
       // Feature Toggles
       'CLAUDE_MEM_CONTEXT_SHOW_LAST_SUMMARY',
       'CLAUDE_MEM_CONTEXT_SHOW_LAST_MESSAGE',
+      // SDK Processing
+      'CLAUDE_MEM_SDK_ENABLED',
     ];
 
     for (const key of settingKeys) {
