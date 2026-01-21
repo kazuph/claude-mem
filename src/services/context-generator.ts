@@ -22,6 +22,7 @@ import {
   formatDateTime,
   formatTime,
   formatDate,
+  formatRelativeTime,
   toRelativePath,
   extractFirstFile
 } from '../shared/timeline-formatting.js';
@@ -37,6 +38,7 @@ interface ContextConfig {
   fullObservationCount: number;
   sessionCount: number;
   userPromptsCount: number;
+  rawToolCount: number;
 
   // Token display toggles
   showReadTokens: boolean;
@@ -68,6 +70,7 @@ function loadContextConfig(): ContextConfig {
       fullObservationCount: parseInt(settings.CLAUDE_MEM_CONTEXT_FULL_COUNT, 10),
       sessionCount: parseInt(settings.CLAUDE_MEM_CONTEXT_SESSION_COUNT, 10),
       userPromptsCount: parseInt(settings.CLAUDE_MEM_CONTEXT_USER_PROMPTS_COUNT || '5', 10),
+      rawToolCount: parseInt(settings.CLAUDE_MEM_CONTEXT_RAW_TOOL_COUNT || '10', 10),
       showReadTokens: settings.CLAUDE_MEM_CONTEXT_SHOW_READ_TOKENS === 'true',
       showWorkTokens: settings.CLAUDE_MEM_CONTEXT_SHOW_WORK_TOKENS === 'true',
       showSavingsAmount: settings.CLAUDE_MEM_CONTEXT_SHOW_SAVINGS_AMOUNT === 'true',
@@ -90,6 +93,7 @@ function loadContextConfig(): ContextConfig {
       fullObservationCount: 5,
       sessionCount: 10,
       userPromptsCount: 5,
+      rawToolCount: 10,
       showReadTokens: true,
       showWorkTokens: true,
       showSavingsAmount: true,
@@ -165,6 +169,8 @@ interface UserPrompt {
   prompt_text: string;
   created_at: string;
   created_at_epoch: number;
+  session_status?: string;
+  completed_summary?: string;
 }
 
 // Helper: Render a summary field
@@ -291,13 +297,36 @@ export async function generateContext(input?: ContextInput, useColors: boolean =
   // Get recent user prompts (join with sdk_sessions to filter by project)
   const userPrompts = config.userPromptsCount > 0
     ? db.db.prepare(`
-        SELECT up.id, up.claude_session_id, up.prompt_number, up.prompt_text, up.created_at, up.created_at_epoch
+        SELECT
+          up.id,
+          up.claude_session_id,
+          up.prompt_number,
+          up.prompt_text,
+          up.created_at,
+          up.created_at_epoch,
+          s.status as session_status,
+          ss.completed as completed_summary
         FROM user_prompts up
         JOIN sdk_sessions s ON up.claude_session_id = s.claude_session_id
+        LEFT JOIN session_summaries ss ON s.sdk_session_id = ss.sdk_session_id
         WHERE s.project = ?
         ORDER BY up.created_at_epoch DESC
         LIMIT ?
       `).all(project, config.userPromptsCount) as UserPrompt[]
+    : [];
+
+  // Get recent raw tool results (SDK OFF mode data)
+  interface RawToolResult {
+    id: number;
+    session_id: string;
+    tool_name: string;
+    tool_input: string | null;
+    tool_result: string | null;
+    created_at: string;
+  }
+
+  const rawToolResults = config.rawToolCount > 0
+    ? db.getRecentRawToolResults(project, config.rawToolCount)
     : [];
 
   // Retrieve prior session messages if enabled
@@ -361,18 +390,146 @@ export async function generateContext(input?: ContextInput, useColors: boolean =
     // Display prompts in chronological order (oldest first)
     const chronologicalPrompts = [...userPrompts].reverse();
     for (const prompt of chronologicalPrompts) {
-      const time = formatTime(prompt.created_at);
+      const time = formatRelativeTime(prompt.created_at);
       const truncatedText = prompt.prompt_text.length > 200
         ? prompt.prompt_text.substring(0, 200) + '...'
         : prompt.prompt_text;
 
+      let statusMark = '';
+      if (prompt.session_status === 'completed') {
+        statusMark = useColors ? `${colors.green}(Done)${colors.reset} ` : '(Done) ';
+      }
+
+      let summaryText = '';
+      if (prompt.completed_summary) {
+         summaryText = `\n      └─ ${useColors ? colors.dim : ''}Result: ${prompt.completed_summary}${useColors ? colors.reset : ''}`;
+      }
+
       if (useColors) {
-        output.push(`${colors.dim}${time}${colors.reset} ${truncatedText}`);
+        output.push(`${colors.dim}${time}${colors.reset} ${statusMark}${truncatedText}${summaryText}`);
       } else {
-        output.push(`- **${time}**: ${truncatedText}`);
+        output.push(`- **${time}** ${statusMark}${truncatedText}${summaryText}`);
       }
     }
     output.push('');
+  }
+
+  // Recent Raw Tool Results Section (SDK OFF mode data)
+  if (rawToolResults.length > 0) {
+    // Filter to only show TodoWrite entries
+    const todoResults = rawToolResults.filter(r => r.tool_name === 'TodoWrite');
+
+    if (todoResults.length > 0) {
+      if (useColors) {
+        output.push(`${colors.bright}${colors.magenta}📋 Recent Todo Changes${colors.reset}`);
+        output.push('');
+      } else {
+        output.push(`## 📋 Recent Todo Changes`);
+        output.push('');
+      }
+
+      // Display in chronological order (oldest first)
+      const chronologicalTodos = [...todoResults].reverse();
+      for (const result of chronologicalTodos) {
+        const time = formatRelativeTime(result.created_at);
+
+        // Parse and summarize the todo input
+        let summary = '';
+        try {
+          if (result.tool_input) {
+            const input = JSON.parse(result.tool_input);
+            if (input.todos && Array.isArray(input.todos)) {
+              const inProgress = input.todos.filter((t: any) => t.status === 'in_progress');
+              const pending = input.todos.filter((t: any) => t.status === 'pending');
+              const completed = input.todos.filter((t: any) => t.status === 'completed');
+
+              const parts: string[] = [];
+              if (inProgress.length > 0) {
+                parts.push(`🔄 ${inProgress.length} in progress`);
+              }
+              if (pending.length > 0) {
+                parts.push(`⏳ ${pending.length} pending`);
+              }
+              if (completed.length > 0) {
+                parts.push(`✅ ${completed.length} completed`);
+              }
+              summary = parts.join(', ');
+
+              // Show first in-progress or pending task as hint
+              const activeTask = inProgress[0] || pending[0];
+              if (activeTask && activeTask.content) {
+                const truncated = activeTask.content.length > 80
+                  ? activeTask.content.substring(0, 80) + '...'
+                  : activeTask.content;
+                summary += ` | "${truncated}"`;
+              }
+            }
+          }
+        } catch {
+          summary = 'Todo list updated';
+        }
+
+        if (!summary) {
+          summary = 'Todo list updated';
+        }
+
+        if (useColors) {
+          output.push(`${colors.dim}${time}${colors.reset} ${summary}`);
+        } else {
+          output.push(`- **${time}** ${summary}`);
+        }
+      }
+      output.push('');
+    }
+
+    // Also show AskUserQuestion results if any
+    const askResults = rawToolResults.filter(r => r.tool_name === 'AskUserQuestion');
+    if (askResults.length > 0) {
+      if (useColors) {
+        output.push(`${colors.bright}${colors.blue}❓ Recent User Questions${colors.reset}`);
+        output.push('');
+      } else {
+        output.push(`## ❓ Recent User Questions`);
+        output.push('');
+      }
+
+      const chronologicalAsks = [...askResults].reverse();
+      for (const result of chronologicalAsks) {
+        const time = formatRelativeTime(result.created_at);
+
+        let summary = '';
+        try {
+          if (result.tool_input) {
+            const input = JSON.parse(result.tool_input);
+            if (input.question) {
+              const truncated = input.question.length > 100
+                ? input.question.substring(0, 100) + '...'
+                : input.question;
+              summary = `Q: ${truncated}`;
+            }
+          }
+          if (result.tool_result) {
+            const answer = result.tool_result.length > 100
+              ? result.tool_result.substring(0, 100) + '...'
+              : result.tool_result;
+            summary += summary ? ` → A: ${answer}` : `A: ${answer}`;
+          }
+        } catch {
+          summary = 'User question';
+        }
+
+        if (!summary) {
+          summary = 'User question';
+        }
+
+        if (useColors) {
+          output.push(`${colors.dim}${time}${colors.reset} ${summary}`);
+        } else {
+          output.push(`- **${time}** ${summary}`);
+        }
+      }
+      output.push('');
+    }
   }
 
   // Chronological Timeline

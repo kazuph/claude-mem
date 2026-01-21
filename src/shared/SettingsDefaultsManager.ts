@@ -45,6 +45,8 @@ export interface SettingsDefaults {
   CLAUDE_MEM_CONTEXT_SHOW_LAST_MESSAGE: string;
   // User Prompts
   CLAUDE_MEM_CONTEXT_USER_PROMPTS_COUNT: string;  // Number of recent user prompts to inject (0 = disabled)
+  // Raw Tool Results (SDK OFF mode)
+  CLAUDE_MEM_CONTEXT_RAW_TOOL_COUNT: string;  // Number of recent raw tool results to inject (0 = disabled)
 }
 
 export class SettingsDefaultsManager {
@@ -85,6 +87,8 @@ export class SettingsDefaultsManager {
     CLAUDE_MEM_CONTEXT_SHOW_LAST_MESSAGE: 'false',
     // User Prompts
     CLAUDE_MEM_CONTEXT_USER_PROMPTS_COUNT: '5',  // Inject recent user prompts for session continuity
+    // Raw Tool Results (SDK OFF mode)
+    CLAUDE_MEM_CONTEXT_RAW_TOOL_COUNT: '10',  // Inject recent raw tool results (TodoWrite, AskUserQuestion)
   };
 
   /**

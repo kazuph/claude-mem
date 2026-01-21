@@ -2128,4 +2128,41 @@ export class SessionStore {
     const result = stmt.run(sessionId, response);
     return result.lastInsertRowid as number;
   }
+
+  /**
+   * Get recent raw tool results for a project (for SDK OFF mode context injection)
+   * Joins with sdk_sessions to filter by project
+   */
+  getRecentRawToolResults(project: string, limit: number = 10): Array<{
+    id: number;
+    session_id: string;
+    tool_name: string;
+    tool_input: string | null;
+    tool_result: string | null;
+    created_at: string;
+  }> {
+    const stmt = this.db.prepare(`
+      SELECT
+        r.id,
+        r.session_id,
+        r.tool_name,
+        r.tool_input,
+        r.tool_result,
+        r.created_at
+      FROM raw_tool_results r
+      JOIN sdk_sessions s ON r.session_id = s.claude_session_id
+      WHERE s.project = ?
+      ORDER BY r.created_at DESC
+      LIMIT ?
+    `);
+
+    return stmt.all(project, limit) as Array<{
+      id: number;
+      session_id: string;
+      tool_name: string;
+      tool_input: string | null;
+      tool_result: string | null;
+      created_at: string;
+    }>;
+  }
 }
