@@ -56,7 +56,7 @@ Settings are managed in `~/.claude-mem/settings.json`. The file is auto-created 
 
 - **Source**: `<project-root>/src/`
 - **Built Plugin**: `<project-root>/plugin/`
-- **Installed Plugin**: `~/.claude/plugins/marketplaces/thedotmack/`
+- **Installed Plugin**: `~/.claude/plugins/marketplaces/kazuph-claude-mem-jp/`
 - **Database**: `~/.claude-mem/claude-mem.db`
 - **Chroma**: `~/.claude-mem/chroma/`
 
@@ -91,6 +91,47 @@ Claude-mem is designed with a clean separation between open-source core function
 - Users without Pro licenses continue using the full open-source viewer UI without limitation
 
 This architecture preserves the open-source nature of the project while enabling sustainable development through optional paid features.
+
+## Plugin Release Workflow
+
+After implementing changes and getting user approval, follow this workflow to release:
+
+### 1. Version Bump
+Update version in all 4 files:
+- `package.json`
+- `plugin/package.json`
+- `.claude-plugin/marketplace.json`
+- `plugin/.claude-plugin/plugin.json`
+
+### 2. Commit & Push
+```bash
+git add -A && git commit -m "chore: bump plugin version to X.Y.Z" && git push origin main
+```
+
+### 3. Build & Sync to Marketplace
+```bash
+npm run build-and-sync
+```
+This command:
+- Builds all hooks, worker service, and MCP server
+- Syncs to `~/.claude/plugins/marketplaces/kazuph-claude-mem-jp/`
+- Restarts the worker service
+
+### 4. Update Plugin via Claude CLI
+```bash
+claude plugin update claude-mem@kazuph-claude-mem-jp
+claude plugin update claude-mem@kazuph-claude-mem-jp --scope project
+```
+
+### 5. Verify
+```bash
+claude plugin list | grep claude-mem
+```
+
+**Important**: Do NOT manually copy files to the marketplace directory. Always use `npm run build-and-sync` followed by `claude plugin update` to ensure proper versioning and dependency management.
+
+### Version Detection Mechanism
+The `smart-install.js` script compares `package.json` version with `.install-version` marker. When versions differ, `bun install` runs automatically on next Claude Code startup.
 
 # Important
 
