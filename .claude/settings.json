@@ -8,6 +8,6 @@
     ]
   },
   "enabledPlugins": {
-    "claude-mem@kazuph-claude-mem-jp": false
+    "claude-mem@kazuph-claude-mem-jp": true
   }
 }
