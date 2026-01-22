@@ -115,7 +115,6 @@ npm run build-and-sync
 This command:
 - Builds all hooks, worker service, and MCP server
 - Syncs to `~/.claude/plugins/marketplaces/kazuph-claude-mem-jp/`
-- Restarts the worker service
 
 ### 4. Update Plugin via Claude CLI
 ```bash
@@ -130,8 +129,11 @@ claude plugin list | grep claude-mem
 
 **Important**: Do NOT manually copy files to the marketplace directory. Always use `npm run build-and-sync` followed by `claude plugin update` to ensure proper versioning and dependency management.
 
-### Version Detection Mechanism
-The `smart-install.js` script compares `package.json` version with `.install-version` marker. When versions differ, `bun install` runs automatically on next Claude Code startup.
+### Automatic Version Detection & Worker Restart
+
+**Worker auto-restart**: When a hook fires (e.g., SessionStart), `ensureWorkerVersionMatches()` in `src/shared/worker-utils.ts` compares the plugin version with the running worker version. If they differ, the worker is **automatically restarted**. No manual `worker:restart` is needed.
+
+**Dependency auto-install**: The `smart-install.js` script compares `package.json` version with `.install-version` marker. When versions differ, `bun install` runs automatically on next Claude Code startup.
 
 # Important
 
