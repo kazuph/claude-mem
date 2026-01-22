@@ -116,7 +116,9 @@ This command:
 - Builds all hooks, worker service, and MCP server
 - Syncs to `~/.claude/plugins/marketplaces/kazuph-claude-mem-jp/`
 
-### 4. Update Plugin via Claude CLI
+### 4. Update Plugin via Claude CLI (REQUIRED)
+**This step is MANDATORY.** The `claude plugin update` command is the only way to properly update the installed plugin. Without this, the plugin version will not be updated even after `build-and-sync`.
+
 ```bash
 claude plugin update claude-mem@kazuph-claude-mem-jp
 claude plugin update claude-mem@kazuph-claude-mem-jp --scope project
