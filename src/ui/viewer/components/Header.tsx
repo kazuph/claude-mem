@@ -16,6 +16,7 @@ interface HeaderProps {
   onContextPreviewToggle: () => void;
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
+  version: string;
 }
 
 export function Header({
@@ -29,7 +30,8 @@ export function Header({
   onThemeChange,
   onContextPreviewToggle,
   viewMode,
-  onViewModeChange
+  onViewModeChange,
+  version
 }: HeaderProps) {
   // Resolve effective theme for Product Hunt badge
   const isDark = themePreference === 'dark' ||
@@ -49,6 +51,7 @@ export function Header({
           )}
         </div>
         <span className="logo-text">claude-mem</span>
+        {version && <span className="version-badge">v{version}</span>}
       </h1>
       <div className="status">
         <a

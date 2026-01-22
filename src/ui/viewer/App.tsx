@@ -17,8 +17,17 @@ export function App() {
   const [paginatedObservations, setPaginatedObservations] = useState<Observation[]>([]);
   const [paginatedSummaries, setPaginatedSummaries] = useState<Summary[]>([]);
   const [paginatedPrompts, setPaginatedPrompts] = useState<UserPrompt[]>([]);
+  const [version, setVersion] = useState<string>('');
 
   const { observations, summaries, prompts, projects, isProcessing, queueDepth, isConnected } = useSSE();
+
+  // Fetch version on mount
+  useEffect(() => {
+    fetch('/api/version')
+      .then(res => res.json())
+      .then(data => setVersion(data.version || ''))
+      .catch(() => setVersion(''));
+  }, []);
   const { settings, saveSettings, isSaving, saveStatus } = useSettings();
   const { stats, refreshStats } = useStats();
   const { preference, resolvedTheme, setThemePreference } = useTheme();
@@ -100,6 +109,7 @@ export function App() {
         onContextPreviewToggle={toggleContextPreview}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
+        version={version}
       />
 
       <Feed
