@@ -41,7 +41,7 @@ model = None
 model_name = None
 
 
-def load_model(name: str):
+def load_model(name: str, device: str = "cpu"):
     """Load the sentence-transformers model."""
     global model, model_name
 
@@ -51,13 +51,16 @@ def load_model(name: str):
         from sentence_transformers import SentenceTransformer
         import torch
 
-        # Determine device
-        if torch.cuda.is_available():
-            device = "cuda"
-        elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
-            device = "mps"  # Apple Silicon
-        else:
-            device = "cpu"
+        # Use specified device (default: cpu to save memory)
+        # MPS on Apple Silicon uses ~4GB+ due to Metal memory pool overhead
+        # CPU mode uses ~300-500MB which is much more reasonable
+        if device == "auto":
+            if torch.cuda.is_available():
+                device = "cuda"
+            elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+                device = "mps"
+            else:
+                device = "cpu"
 
         logger.info(f"Using device: {device}")
 
@@ -144,11 +147,13 @@ def main():
     parser.add_argument('--port', type=int, default=DEFAULT_PORT, help=f'Port to listen on (default: {DEFAULT_PORT})')
     parser.add_argument('--model', type=str, default=DEFAULT_MODEL, help=f'Model to use (default: {DEFAULT_MODEL})')
     parser.add_argument('--host', type=str, default='127.0.0.1', help='Host to bind to (default: 127.0.0.1)')
+    parser.add_argument('--device', type=str, default='cpu', choices=['cpu', 'cuda', 'mps', 'auto'],
+                        help='Device to use (default: cpu). Use "auto" for GPU if available.')
 
     args = parser.parse_args()
 
     # Load model
-    if not load_model(args.model):
+    if not load_model(args.model, args.device):
         logger.error("Failed to load model. Exiting.")
         sys.exit(1)
 

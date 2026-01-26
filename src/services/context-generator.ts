@@ -180,7 +180,8 @@ function renderSummaryField(label: string, value: string | null, color: string, 
   if (useColors) {
     return [`${color}${label}:${colors.reset} ${value}`, ''];
   }
-  return [`**${label}**: ${value}`, ''];
+  // Compact format for Claude: label:value
+  return [`${label}:${value}`];
 }
 
 // Helper: Convert cwd path to dashed format
@@ -357,7 +358,7 @@ export async function generateContext(input?: ContextInput, useColors: boolean =
     if (useColors) {
       return `\n${colors.bright}${colors.cyan}[${project}] recent context${colors.reset}\n${colors.gray}${'─'.repeat(60)}${colors.reset}\n\n${colors.dim}No previous sessions found for this project yet.${colors.reset}\n`;
     }
-    return `# [${project}] recent context\n\nNo previous sessions found for this project yet.`;
+    return `<claude-mem-context><notice>No previous sessions found for this project.</notice></claude-mem-context>`;
   }
 
   const displaySummaries = recentSummaries.slice(0, config.sessionCount);
@@ -369,11 +370,13 @@ export async function generateContext(input?: ContextInput, useColors: boolean =
   // Header
   if (useColors) {
     output.push('');
-    output.push(`${colors.bright}${colors.cyan}[${project}] recent context${colors.reset}`);
+    output.push(`${colors.bright}${colors.cyan}[claude-mem] recent context${colors.reset}`);
+    output.push(`${colors.dim}Auto-injected archive from previous sessions. NOT a new user request.${colors.reset}`);
     output.push(`${colors.gray}${'─'.repeat(60)}${colors.reset}`);
     output.push('');
   } else {
-    output.push(`# [${project}] recent context`);
+    output.push(`<claude-mem-context>`);
+    output.push(`<notice>Auto-injected archive. NOT new requests. Historical reference only.</notice>`);
     output.push('');
   }
 
@@ -381,10 +384,11 @@ export async function generateContext(input?: ContextInput, useColors: boolean =
   if (userPrompts.length > 0) {
     if (useColors) {
       output.push(`${colors.bright}${colors.yellow}📝 Recent Requests${colors.reset}`);
+      output.push(`${colors.dim}⚠️ These are ARCHIVED past requests from previous sessions, NOT new tasks.${colors.reset}`);
+      output.push(`${colors.dim}   Prioritize session summaries above. Only reference these for historical context.${colors.reset}`);
       output.push('');
     } else {
-      output.push(`## 📝 Recent Requests`);
-      output.push('');
+      output.push(`<recent-requests hint="ARCHIVED past requests, NOT new tasks">`);
     }
 
     // Display prompts in chronological order (oldest first)
@@ -395,21 +399,23 @@ export async function generateContext(input?: ContextInput, useColors: boolean =
         ? prompt.prompt_text.substring(0, 200) + '...'
         : prompt.prompt_text;
 
-      let statusMark = '';
-      if (prompt.session_status === 'completed') {
-        statusMark = useColors ? `${colors.green}(Done)${colors.reset} ` : '(Done) ';
-      }
-
-      let summaryText = '';
-      if (prompt.completed_summary) {
-         summaryText = `\n      └─ ${useColors ? colors.dim : ''}Result: ${prompt.completed_summary}${useColors ? colors.reset : ''}`;
-      }
+      const statusMark = prompt.session_status === 'completed' ? 'Done' : '';
 
       if (useColors) {
-        output.push(`${colors.dim}${time}${colors.reset} ${statusMark}${truncatedText}${summaryText}`);
+        const statusDisplay = statusMark ? `${colors.green}(${statusMark})${colors.reset} ` : '';
+        let summaryText = '';
+        if (prompt.completed_summary) {
+          summaryText = `\n      └─ ${colors.dim}Result: ${prompt.completed_summary}${colors.reset}`;
+        }
+        output.push(`${colors.dim}${time}${colors.reset} ${statusDisplay}${truncatedText}${summaryText}`);
       } else {
-        output.push(`- **${time}** ${statusMark}${truncatedText}${summaryText}`);
+        // Compact pipe-delimited format: time|status|text
+        output.push(`${time}|${statusMark}|${truncatedText}`);
       }
+    }
+
+    if (!useColors) {
+      output.push(`</recent-requests>`);
     }
     output.push('');
   }
@@ -424,8 +430,7 @@ export async function generateContext(input?: ContextInput, useColors: boolean =
         output.push(`${colors.bright}${colors.magenta}📋 Recent Todo Changes${colors.reset}`);
         output.push('');
       } else {
-        output.push(`## 📋 Recent Todo Changes`);
-        output.push('');
+        output.push(`<todo-changes>`);
       }
 
       // Display in chronological order (oldest first)
@@ -445,15 +450,15 @@ export async function generateContext(input?: ContextInput, useColors: boolean =
 
               const parts: string[] = [];
               if (inProgress.length > 0) {
-                parts.push(`🔄 ${inProgress.length} in progress`);
+                parts.push(`🔄${inProgress.length}`);
               }
               if (pending.length > 0) {
-                parts.push(`⏳ ${pending.length} pending`);
+                parts.push(`⏳${pending.length}`);
               }
               if (completed.length > 0) {
-                parts.push(`✅ ${completed.length} completed`);
+                parts.push(`✅${completed.length}`);
               }
-              summary = parts.join(', ');
+              summary = parts.join(' ');
 
               // Show first in-progress or pending task as hint
               const activeTask = inProgress[0] || pending[0];
@@ -461,23 +466,27 @@ export async function generateContext(input?: ContextInput, useColors: boolean =
                 const truncated = activeTask.content.length > 80
                   ? activeTask.content.substring(0, 80) + '...'
                   : activeTask.content;
-                summary += ` | "${truncated}"`;
+                summary += `|${truncated}`;
               }
             }
           }
         } catch {
-          summary = 'Todo list updated';
+          summary = 'updated';
         }
 
         if (!summary) {
-          summary = 'Todo list updated';
+          summary = 'updated';
         }
 
         if (useColors) {
           output.push(`${colors.dim}${time}${colors.reset} ${summary}`);
         } else {
-          output.push(`- **${time}** ${summary}`);
+          output.push(`${time}|${summary}`);
         }
+      }
+
+      if (!useColors) {
+        output.push(`</todo-changes>`);
       }
       output.push('');
     }
@@ -489,8 +498,7 @@ export async function generateContext(input?: ContextInput, useColors: boolean =
         output.push(`${colors.bright}${colors.blue}❓ Recent User Questions${colors.reset}`);
         output.push('');
       } else {
-        output.push(`## ❓ Recent User Questions`);
-        output.push('');
+        output.push(`<user-questions>`);
       }
 
       const chronologicalAsks = [...askResults].reverse();
@@ -505,28 +513,32 @@ export async function generateContext(input?: ContextInput, useColors: boolean =
               const truncated = input.question.length > 100
                 ? input.question.substring(0, 100) + '...'
                 : input.question;
-              summary = `Q: ${truncated}`;
+              summary = `Q:${truncated}`;
             }
           }
           if (result.tool_result) {
             const answer = result.tool_result.length > 100
               ? result.tool_result.substring(0, 100) + '...'
               : result.tool_result;
-            summary += summary ? ` → A: ${answer}` : `A: ${answer}`;
+            summary += summary ? `→A:${answer}` : `A:${answer}`;
           }
         } catch {
-          summary = 'User question';
+          summary = 'question';
         }
 
         if (!summary) {
-          summary = 'User question';
+          summary = 'question';
         }
 
         if (useColors) {
           output.push(`${colors.dim}${time}${colors.reset} ${summary}`);
         } else {
-          output.push(`- **${time}** ${summary}`);
+          output.push(`${time}|${summary}`);
         }
+      }
+
+      if (!useColors) {
+        output.push(`</user-questions>`);
       }
       output.push('');
     }
@@ -534,43 +546,26 @@ export async function generateContext(input?: ContextInput, useColors: boolean =
 
   // Chronological Timeline
   if (timelineObs.length > 0) {
-    // Legend
+    // Legend - compact for non-color mode
     if (useColors) {
       output.push(`${colors.dim}Legend: 🎯 session-request | 🔴 bugfix | 🟣 feature | 🔄 refactor | ✅ change | 🔵 discovery | ⚖️  decision${colors.reset}`);
-    } else {
-      output.push(`**Legend:** 🎯 session-request | 🔴 bugfix | 🟣 feature | 🔄 refactor | ✅ change | 🔵 discovery | ⚖️  decision`);
-    }
-    output.push('');
-
-    // Column Key
-    if (useColors) {
+      output.push('');
       output.push(`${colors.bright}💡 Column Key${colors.reset}`);
       output.push(`${colors.dim}  Read: Tokens to read this observation (cost to learn it now)${colors.reset}`);
       output.push(`${colors.dim}  Work: Tokens spent on work that produced this record (🔍 research, 🛠️ building, ⚖️  deciding)${colors.reset}`);
-    } else {
-      output.push(`💡 **Column Key**:`);
-      output.push(`- **Read**: Tokens to read this observation (cost to learn it now)`);
-      output.push(`- **Work**: Tokens spent on work that produced this record (🔍 research, 🛠️ building, ⚖️  deciding)`);
-    }
-    output.push('');
-
-    // Context Index Instructions
-    if (useColors) {
+      output.push('');
       output.push(`${colors.dim}💡 Context Index: This semantic index (titles, types, files, tokens) is usually sufficient to understand past work.${colors.reset}`);
       output.push('');
       output.push(`${colors.dim}When you need implementation details, rationale, or debugging context:${colors.reset}`);
       output.push(`${colors.dim}  - Use the mem-search skill to fetch full observations on-demand${colors.reset}`);
       output.push(`${colors.dim}  - Critical types (🔴 bugfix, ⚖️ decision) often need detailed fetching${colors.reset}`);
       output.push(`${colors.dim}  - Trust this index over re-reading code for past decisions and learnings${colors.reset}`);
-    } else {
-      output.push(`💡 **Context Index:** This semantic index (titles, types, files, tokens) is usually sufficient to understand past work.`);
       output.push('');
-      output.push(`When you need implementation details, rationale, or debugging context:`);
-      output.push(`- Use the mem-search skill to fetch full observations on-demand`);
-      output.push(`- Critical types (🔴 bugfix, ⚖️ decision) often need detailed fetching`);
-      output.push(`- Trust this index over re-reading code for past decisions and learnings`);
+    } else {
+      // Compact hint for Claude - no verbose explanations needed
+      output.push(`<hint>Legend: 🎯session|🔴bug|🟣feat|🔄refactor|✅change|🔵discovery|⚖️decision | r=read-tokens w=work-tokens | Use mem-search skill for full details</hint>`);
+      output.push('');
     }
-    output.push('');
 
     // Context Economics
     const totalObservations = observations.length;
@@ -608,20 +603,15 @@ export async function generateContext(input?: ContextInput, useColors: boolean =
         }
         output.push('');
       } else {
-        output.push(`📊 **Context Economics**:`);
-        output.push(`- Loading: ${totalObservations} observations (${totalReadTokens.toLocaleString()} tokens to read)`);
-        output.push(`- Work investment: ${totalDiscoveryTokens.toLocaleString()} tokens spent on research, building, and decisions`);
-        if (totalDiscoveryTokens > 0 && (config.showSavingsAmount || config.showSavingsPercent)) {
-          let savingsLine = '- Your savings: ';
-          if (config.showSavingsAmount && config.showSavingsPercent) {
-            savingsLine += `${savings.toLocaleString()} tokens (${savingsPercent}% reduction from reuse)`;
-          } else if (config.showSavingsAmount) {
-            savingsLine += `${savings.toLocaleString()} tokens`;
-          } else {
-            savingsLine += `${savingsPercent}% reduction from reuse`;
+        // Compact economics line
+        const parts: string[] = [`load:${totalObservations}obs/${totalReadTokens}t`];
+        if (totalDiscoveryTokens > 0) {
+          parts.push(`invested:${totalDiscoveryTokens}t`);
+          if (config.showSavingsPercent) {
+            parts.push(`savings:${savingsPercent}%`);
           }
-          output.push(savingsLine);
         }
+        output.push(`<context-economics>${parts.join('|')}</context-economics>`);
         output.push('');
       }
     }
@@ -692,54 +682,34 @@ export async function generateContext(input?: ContextInput, useColors: boolean =
         output.push(`${colors.bright}${colors.cyan}${day}${colors.reset}`);
         output.push('');
       } else {
-        output.push(`### ${day}`);
-        output.push('');
+        output.push(`<observations date="${day}">`);
       }
 
       let currentFile: string | null = null;
       let lastTime = '';
-      let tableOpen = false;
 
       for (const item of dayItems) {
         if (item.type === 'summary') {
-          if (tableOpen) {
-            output.push('');
-            tableOpen = false;
-            currentFile = null;
-            lastTime = '';
-          }
-
           const summary = item.data;
-          const summaryTitle = `${summary.request || 'Session started'} (${formatDateTime(summary.displayTime)})`;
+          const summaryTitle = summary.request || 'Session started';
+          const summaryTime = formatDateTime(summary.displayTime);
 
           if (useColors) {
-            output.push(`🎯 ${colors.yellow}#S${summary.id}${colors.reset} ${summaryTitle}`);
+            output.push(`🎯 ${colors.yellow}#S${summary.id}${colors.reset} ${summaryTitle} (${summaryTime})`);
           } else {
-            output.push(`**🎯 #S${summary.id}** ${summaryTitle}`);
+            // Compact session format: 🎯S{id}|time|title
+            output.push(`🎯S${summary.id}|${summaryTime}|${summaryTitle}`);
           }
-          output.push('');
+          currentFile = null;
+          lastTime = '';
         } else {
           const obs = item.data;
           const file = extractFirstFile(obs.files_modified, cwd);
 
-          if (file !== currentFile) {
-            if (tableOpen) {
-              output.push('');
-            }
-
-            if (useColors) {
-              output.push(`${colors.dim}${file}${colors.reset}`);
-            } else {
-              output.push(`**${file}**`);
-            }
-
-            if (!useColors) {
-              output.push(`| ID | Time | T | Title | Read | Work |`);
-              output.push(`|----|------|---|-------|------|------|`);
-            }
-
+          // Show file header only when file changes (for color mode)
+          if (useColors && file !== currentFile) {
+            output.push(`${colors.dim}${file}${colors.reset}`);
             currentFile = file;
-            tableOpen = true;
             lastTime = '';
           }
 
@@ -754,7 +724,6 @@ export async function generateContext(input?: ContextInput, useColors: boolean =
           const readTokens = Math.ceil(obsSize / CHARS_PER_TOKEN_ESTIMATE);
           const discoveryTokens = obs.discovery_tokens || 0;
           const workEmoji = TYPE_WORK_EMOJI_MAP[obs.type as keyof typeof TYPE_WORK_EMOJI_MAP] || '🔍';
-          const discoveryDisplay = discoveryTokens > 0 ? `${workEmoji} ${discoveryTokens.toLocaleString()}` : '-';
 
           const showTime = time !== lastTime;
           const timeDisplay = showTime ? time : '';
@@ -781,28 +750,15 @@ export async function generateContext(input?: ContextInput, useColors: boolean =
               }
               output.push('');
             } else {
-              if (tableOpen) {
-                output.push('');
-                tableOpen = false;
-              }
-
-              output.push(`**#${obs.id}** ${timeDisplay || '″'} ${icon} **${title}**`);
-              if (detailField) {
-                output.push('');
-                output.push(detailField);
-                output.push('');
-              }
+              // Compact full observation: #id|time|icon|title|r{tokens}|w{tokens}
+              // Then detail on next line
               const tokenParts: string[] = [];
-              if (config.showReadTokens) {
-                tokenParts.push(`Read: ~${readTokens}`);
+              if (config.showReadTokens) tokenParts.push(`r${readTokens}`);
+              if (config.showWorkTokens && discoveryTokens > 0) tokenParts.push(`${workEmoji}${discoveryTokens}`);
+              output.push(`#${obs.id}|${timeDisplay}|${icon}|${title}|${tokenParts.join('|')}`);
+              if (detailField) {
+                output.push(detailField);
               }
-              if (config.showWorkTokens) {
-                tokenParts.push(`Work: ${discoveryDisplay}`);
-              }
-              if (tokenParts.length > 0) {
-                output.push(tokenParts.join(', '));
-              }
-              output.push('');
               currentFile = null;
             }
           } else {
@@ -812,17 +768,21 @@ export async function generateContext(input?: ContextInput, useColors: boolean =
               const discoveryPart = (config.showWorkTokens && discoveryTokens > 0) ? `${colors.dim}(${workEmoji} ${discoveryTokens.toLocaleString()}t)${colors.reset}` : '';
               output.push(`  ${colors.dim}#${obs.id}${colors.reset}  ${timePart}  ${icon}  ${title} ${readPart} ${discoveryPart}`);
             } else {
-              const readCol = config.showReadTokens ? `~${readTokens}` : '';
-              const workCol = config.showWorkTokens ? discoveryDisplay : '';
-              output.push(`| #${obs.id} | ${timeDisplay || '″'} | ${icon} | ${title} | ${readCol} | ${workCol} |`);
+              // Compact observation: #id|time|icon|title|r{tokens}|w{tokens}
+              const tokenParts: string[] = [];
+              if (config.showReadTokens) tokenParts.push(`r${readTokens}`);
+              if (config.showWorkTokens && discoveryTokens > 0) tokenParts.push(`${workEmoji}${discoveryTokens}`);
+              output.push(`#${obs.id}|${timeDisplay}|${icon}|${title}|${tokenParts.join('|')}`);
             }
           }
         }
       }
 
-      if (tableOpen) {
-        output.push('');
+      // Close observations tag for non-color mode
+      if (!useColors) {
+        output.push(`</observations>`);
       }
+      output.push('');
     }
 
     // Add full summary details for most recent session
@@ -835,38 +795,51 @@ export async function generateContext(input?: ContextInput, useColors: boolean =
       (!mostRecentObservation || mostRecentSummary.created_at_epoch > mostRecentObservation.created_at_epoch);
 
     if (shouldShowSummary) {
-      output.push(...renderSummaryField('Investigated', mostRecentSummary.investigated, colors.blue, useColors));
-      output.push(...renderSummaryField('Learned', mostRecentSummary.learned, colors.yellow, useColors));
-      output.push(...renderSummaryField('Completed', mostRecentSummary.completed, colors.green, useColors));
-      output.push(...renderSummaryField('Next Steps', mostRecentSummary.next_steps, colors.magenta, useColors));
+      if (useColors) {
+        output.push(...renderSummaryField('Investigated', mostRecentSummary.investigated, colors.blue, useColors));
+        output.push(...renderSummaryField('Learned', mostRecentSummary.learned, colors.yellow, useColors));
+        output.push(...renderSummaryField('Completed', mostRecentSummary.completed, colors.green, useColors));
+        output.push(...renderSummaryField('Next Steps', mostRecentSummary.next_steps, colors.magenta, useColors));
+      } else {
+        // Compact last-session summary
+        const summaryParts: string[] = [];
+        if (mostRecentSummary.investigated) summaryParts.push(`inv:${mostRecentSummary.investigated}`);
+        if (mostRecentSummary.learned) summaryParts.push(`learned:${mostRecentSummary.learned}`);
+        if (mostRecentSummary.completed) summaryParts.push(`done:${mostRecentSummary.completed}`);
+        if (mostRecentSummary.next_steps) summaryParts.push(`next:${mostRecentSummary.next_steps}`);
+        if (summaryParts.length > 0) {
+          output.push(`<last-session>`);
+          summaryParts.forEach(part => output.push(part));
+          output.push(`</last-session>`);
+        }
+      }
     }
 
     // Previously section
     if (priorAssistantMessage) {
-      output.push('');
-      output.push('---');
-      output.push('');
       if (useColors) {
+        output.push('');
+        output.push('---');
+        output.push('');
         output.push(`${colors.bright}${colors.magenta}📋 Previously${colors.reset}`);
         output.push('');
         output.push(`${colors.dim}A: ${priorAssistantMessage}${colors.reset}`);
-      } else {
-        output.push(`**📋 Previously**`);
         output.push('');
-        output.push(`A: ${priorAssistantMessage}`);
+      } else {
+        output.push(`<previously>${priorAssistantMessage}</previously>`);
       }
-      output.push('');
     }
 
-    // Footer
-    if (showContextEconomics && totalDiscoveryTokens > 0 && savings > 0) {
+    // Footer - only for color mode (humans)
+    if (useColors && showContextEconomics && totalDiscoveryTokens > 0 && savings > 0) {
       const workTokensK = Math.round(totalDiscoveryTokens / 1000);
       output.push('');
-      if (useColors) {
-        output.push(`${colors.dim}💰 Access ${workTokensK}k tokens of past research & decisions for just ${totalReadTokens.toLocaleString()}t. Use the mem-search skill to access memories by ID instead of re-reading files.${colors.reset}`);
-      } else {
-        output.push(`💰 Access ${workTokensK}k tokens of past research & decisions for just ${totalReadTokens.toLocaleString()}t. Use the mem-search skill to access memories by ID instead of re-reading files.`);
-      }
+      output.push(`${colors.dim}💰 Access ${workTokensK}k tokens of past research & decisions for just ${totalReadTokens.toLocaleString()}t. Use the mem-search skill to access memories by ID instead of re-reading files.${colors.reset}`);
+    }
+
+    // Close the main context tag for non-color mode
+    if (!useColors) {
+      output.push(`</claude-mem-context>`);
     }
   }
 
