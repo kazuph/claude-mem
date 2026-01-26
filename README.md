@@ -1,10 +1,10 @@
 <h1 align="center">
   <br>
-  <a href="https://github.com/thedotmack/claude-mem">
+  <a href="https://github.com/kazuph/claude-mem">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/thedotmack/claude-mem/main/docs/public/claude-mem-logo-for-dark-mode.webp">
-      <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/thedotmack/claude-mem/main/docs/public/claude-mem-logo-for-light-mode.webp">
-      <img src="https://raw.githubusercontent.com/thedotmack/claude-mem/main/docs/public/claude-mem-logo-for-light-mode.webp" alt="Claude-Mem" width="400">
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/kazuph/claude-mem/main/docs/public/claude-mem-logo-for-dark-mode.webp">
+      <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/kazuph/claude-mem/main/docs/public/claude-mem-logo-for-light-mode.webp">
+      <img src="https://raw.githubusercontent.com/kazuph/claude-mem/main/docs/public/claude-mem-logo-for-light-mode.webp" alt="Claude-Mem" width="400">
     </picture>
   </a>
   <br>
@@ -17,7 +17,7 @@
     <img src="https://img.shields.io/badge/License-AGPL%203.0-blue.svg" alt="License">
   </a>
   <a href="package.json">
-    <img src="https://img.shields.io/badge/version-6.5.0-green.svg" alt="Version">
+    <img src="https://img.shields.io/badge/version-7.6.0-green.svg" alt="Version">
   </a>
   <a href="package.json">
     <img src="https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg" alt="Node">
@@ -30,9 +30,9 @@
 <p align="center">
   <a href="https://trendshift.io/repositories/15496" target="_blank">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/thedotmack/claude-mem/main/docs/public/trendshift-badge-dark.svg">
-      <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/thedotmack/claude-mem/main/docs/public/trendshift-badge.svg">
-      <img src="https://raw.githubusercontent.com/thedotmack/claude-mem/main/docs/public/trendshift-badge.svg" alt="thedotmack/claude-mem | Trendshift" width="250" height="55"/>
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/kazuph/claude-mem/main/docs/public/trendshift-badge-dark.svg">
+      <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/kazuph/claude-mem/main/docs/public/trendshift-badge.svg">
+      <img src="https://raw.githubusercontent.com/kazuph/claude-mem/main/docs/public/trendshift-badge.svg" alt="kazuph/claude-mem | Trendshift" width="250" height="55"/>
     </picture>
   </a>
 </p>
@@ -40,9 +40,9 @@
 <br>
 
 <p align="center">
-  <a href="https://github.com/thedotmack/claude-mem">
+  <a href="https://github.com/kazuph/claude-mem">
     <picture>
-      <img src="https://raw.githubusercontent.com/thedotmack/claude-mem/main/docs/public/cm-preview.gif" alt="Claude-Mem Preview" width="800">
+      <img src="https://raw.githubusercontent.com/kazuph/claude-mem/main/docs/public/cm-preview.gif" alt="Claude-Mem Preview" width="800">
     </picture>
   </a>
 </p>
@@ -68,7 +68,7 @@
 Start a new Claude Code session in the terminal and enter the following commands:
 
 ```
-> /plugin marketplace add thedotmack/claude-mem
+> /plugin marketplace add kazuph/claude-mem
 
 > /plugin install claude-mem
 ```
@@ -249,26 +249,33 @@ See [Beta Features Documentation](https://docs.claude-mem.ai/beta-features) for 
 
 ## What's New
 
-**v6.4.9 - Context Configuration Settings:**
-- 11 new settings for fine-grained control over context injection
-- Configure token economics display, observation filtering by type/concept
-- Control number of observations and which fields to display
+**v7.6.0 - XML Context Injection:**
+- Refactored context injection to XML+pipe format for better token efficiency
+- Clearer separation between historical context and current requests
+- Improved structure for AI parsing and understanding
 
-**v6.4.0 - Dual-Tag Privacy System:**
-- `<private>` tags for user-controlled privacy - wrap sensitive content to exclude from storage
-- System-level `<claude-mem-context>` tags prevent recursive observation storage
-- Edge processing ensures private content never reaches database
+**v7.5.x - Viewer UI Enhancements:**
+- Version display added to Viewer UI header
+- Relative time display for observations
+- Completion status indicators
+- Raw tool results injection support
 
-**v6.3.0 - Version Channel:**
-- Switch between stable and beta versions from the web viewer UI
-- Try experimental features like Endless Mode without manual git operations
+**v7.5.0 - SDK Toggle & Raw Storage:**
+- SDK toggle for flexible observation processing
+- Raw tool output storage for complete context preservation
+- Bash and AskUserQuestion added to default ALLOW_TOOLS
+
+**v7.4.x - Stability Improvements:**
+- Viewer UI cache structure fixes
+- Auto-detect project from most recent session for MCP tools
+- Plugin release workflow documentation
 
 **Previous Highlights:**
+- **v6.4.9**: 11 new settings for fine-grained context injection control
+- **v6.4.0**: Dual-Tag Privacy System (`<private>` and `<claude-mem-context>`)
+- **v6.3.0**: Version Channel for switching between stable and beta
 - **v6.0.0**: Major session management & transcript processing improvements
 - **v5.5.0**: mem-search skill enhancement with 100% effectiveness rate
-- **v5.4.0**: Skill-based search architecture (~2,250 tokens saved per session)
-- **v5.1.0**: Web-based viewer UI with real-time updates
-- **v5.0.0**: Hybrid search with Chroma vector database
 
 See [CHANGELOG.md](CHANGELOG.md) for complete version history.
 
@@ -369,7 +376,7 @@ See [Configuration Guide](https://docs.claude-mem.ai/configuration) for details.
 
 ```bash
 # Clone and build
-git clone https://github.com/thedotmack/claude-mem.git
+git clone https://github.com/kazuph/claude-mem.git
 cd claude-mem
 npm install
 npm run build
@@ -415,7 +422,7 @@ See [Troubleshooting Guide](https://docs.claude-mem.ai/troubleshooting) for comp
 
 ```bash
 # From the plugin directory
-cd ~/.claude/plugins/marketplaces/thedotmack
+cd ~/.claude/plugins/marketplaces/kazuph-claude-mem-jp
 npm run bug-report
 ```
 
@@ -428,8 +435,8 @@ The bug report tool will:
 - 🌐 **Auto-submit** - Opens GitHub with pre-filled title and body
 
 **Plugin Directory Paths:**
-- **macOS/Linux**: `~/.claude/plugins/marketplaces/thedotmack`
-- **Windows**: `%USERPROFILE%\.claude\plugins\marketplaces\thedotmack`
+- **macOS/Linux**: `~/.claude/plugins/marketplaces/kazuph-claude-mem-jp`
+- **Windows**: `%USERPROFILE%\.claude\plugins\marketplaces\kazuph-claude-mem-jp`
 
 **Options:**
 ```bash
@@ -474,9 +481,10 @@ See the [LICENSE](LICENSE) file for full details.
 ## Support
 
 - **Documentation**: [docs/](docs/)
-- **Issues**: [GitHub Issues](https://github.com/thedotmack/claude-mem/issues)
-- **Repository**: [github.com/thedotmack/claude-mem](https://github.com/thedotmack/claude-mem)
-- **Author**: Alex Newman ([@thedotmack](https://github.com/thedotmack))
+- **Issues**: [GitHub Issues](https://github.com/kazuph/claude-mem/issues)
+- **Repository**: [github.com/kazuph/claude-mem](https://github.com/kazuph/claude-mem)
+- **Original Author**: Alex Newman ([@thedotmack](https://github.com/thedotmack))
+- **Fork Maintainer**: kazuph ([@kazuph](https://github.com/kazuph))
 
 ---
 
