@@ -8,7 +8,8 @@
 import express, { Request, Response, NextFunction, RequestHandler } from 'express';
 import cors from 'cors';
 import path from 'path';
-import { getPackageRoot } from '../../../shared/paths.js';
+import { existsSync } from 'fs';
+import { getPackageRoot, PLUGIN_SCRIPTS_DIR } from '../../../shared/paths.js';
 import { logger } from '../../../utils/logger.js';
 
 /**
@@ -55,9 +56,22 @@ export function createMiddleware(
   });
 
   // Serve static files for web UI (viewer-bundle.js, logos, fonts, etc.)
+  // Try multiple structures (same logic as ViewerRoutes):
+  // 1. cache structure: ui/ directly in version dir (e.g., 7.6.0/ui/)
+  // 2. marketplace structure: plugin/ui/ (getPackageRoot = marketplace root)
   const packageRoot = getPackageRoot();
-  const uiDir = path.join(packageRoot, 'plugin', 'ui');
-  middlewares.push(express.static(uiDir));
+  const uiDirCandidates = [
+    path.resolve(PLUGIN_SCRIPTS_DIR, '..', 'ui'),  // Cache: scripts/../ui/
+    path.join(packageRoot, 'ui'),                   // Cache: packageRoot/ui/
+    path.join(packageRoot, 'plugin', 'ui'),         // Marketplace: plugin/ui/
+  ];
+
+  const uiDir = uiDirCandidates.find(dir => existsSync(dir));
+  if (uiDir) {
+    middlewares.push(express.static(uiDir));
+  } else {
+    logger.warn('STATIC', 'UI directory not found', { tried: uiDirCandidates });
+  }
 
   return middlewares;
 }

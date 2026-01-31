@@ -1249,13 +1249,14 @@ export class SessionStore {
 
     // If lastInsertRowid is 0, insert was ignored (session exists), so fetch existing ID
     if (result.lastInsertRowid === 0 || result.changes === 0) {
-      // Session exists - UPDATE project and user_prompt if we have non-empty values
-      // This fixes the bug where SAVE hook creates session with empty project,
-      // then NEW hook can't update it because INSERT OR IGNORE skips the insert
+      // Session exists - UPDATE project and user_prompt ONLY if they are empty
+      // This preserves the initial project from session start (prevents cd from splitting timelines)
+      // Also fixes the bug where SAVE hook creates session with empty project
       if (project && project.trim() !== '') {
         this.db.prepare(`
           UPDATE sdk_sessions
-          SET project = ?, user_prompt = ?
+          SET project = CASE WHEN project = '' OR project IS NULL THEN ? ELSE project END,
+              user_prompt = CASE WHEN user_prompt = '' THEN ? ELSE user_prompt END
           WHERE claude_session_id = ?
         `).run(project, userPrompt, claudeSessionId);
       }
