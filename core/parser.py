@@ -1,0 +1,185 @@
+"""JSONL parser for Claude Code session logs.
+
+Reads ~/.claude/projects/<cwd-dashed>/<sessionId>.jsonl and extracts
+structured events (user prompts, assistant responses, tool usage).
+
+Noise filtering: removes system-reminder, task-notification, skill templates,
+observed_from_primary_session wrappers, and privacy tags.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+# Known noise XML tag names. Uses backreference to match opening/closing pairs.
+_NOISE_TAG_NAMES = (
+    "system-reminder|private|claude-mem-context|task-notification|"
+    "observed_from_primary_session|observation|user_request|assistant_response|"
+    "tool-use-id|task-id|output-file|status|summary|persisted-output|"
+    "observed_tool_use|tool_name|tool_input|tool_output|"
+    r"functions|function|antml:[\w-]+"
+)
+# Match <tag>...</tag> pairs using backreference (\1) for correct pairing
+NOISE_XML_TAGS = re.compile(
+    rf"<({_NOISE_TAG_NAMES})>.*?</\1>",
+    re.DOTALL,
+)
+
+# Lines containing bucho/tmux noise patterns
+BUCHO_TMUX_LINE_RE = re.compile(r"^.*(?:tmux send-keys|あなたは\*\*部長\*\*です|メモリ処理継続中).*$", re.MULTILINE)
+
+# claude-mem observation agent boilerplate prompts
+# These are the full system prompts injected into memory agent sessions
+OBSERVATION_BOILERPLATE_MARKERS = [
+    "メモリエージェント",  # Japanese memory agent prompt
+    "memory agent",  # English memory agent prompt
+    "プライマリのClaudeセッションの観察",  # "observing primary Claude session"
+    "observed_from_primary_session",  # XML tag mention in text
+]
+
+# Skill template blocks: from "Base directory for this skill:" line
+# through the skill body (markdown content) to the last line before
+# the user's actual message. The user's message typically follows after
+# two consecutive newlines at the end of the skill block.
+# Strategy: match from "Base directory" to the last markdown-like line
+# before a short user question (heuristic: lines starting with # or
+# containing skill-like patterns)
+def _strip_skill_template(text: str) -> str:
+    """Remove skill template blocks injected at the start of user messages."""
+    marker = "Base directory for this skill:"
+    if marker not in text:
+        return text
+    idx = text.index(marker)
+    before = text[:idx]
+    after_marker = text[idx:]
+    # Find the last non-empty line that looks like skill content
+    # Split into lines and find where the user's actual message starts
+    lines = after_marker.split("\n")
+    user_start = len(lines)  # default: everything is skill content
+    # Walk backwards from end to find user's actual message
+    # Heuristic: skill templates have markdown headers (#), bullet points,
+    # code blocks, and directive-style content
+    for i in range(len(lines) - 1, -1, -1):
+        line = lines[i].strip()
+        if not line:
+            continue
+        # If this line looks like a user question (short, no markdown formatting)
+        if (not line.startswith("#") and
+            not line.startswith("-") and
+            not line.startswith("*") and
+            not line.startswith(">") and
+            not line.startswith("`") and
+            not line.startswith("|") and
+            ":" not in line[:30] and
+            len(line) < 200):
+            user_start = i
+            break
+    # Everything before user_start is skill content to remove
+    user_lines = lines[user_start:]
+    return (before + "\n".join(user_lines)).strip()
+
+# Event types we care about
+SKIP_TYPES = frozenset({"system", "queue-operation", "file-history-snapshot"})
+
+
+@dataclass
+class ParsedEvent:
+    """A single parsed event from the JSONL log."""
+
+    type: str  # "user", "assistant" (sui-memory style: text blocks only)
+    text: str
+    timestamp: str = ""
+    tool_name: str = ""
+    prompt_id: str = ""
+
+
+def strip_noise(text: str) -> str:
+    """Remove all noise from text: XML meta tags, skill templates, bucho/tmux patterns."""
+    # Remove all known XML noise tags in one pass
+    text = NOISE_XML_TAGS.sub("", text)
+    # Remove bucho/tmux noise lines
+    text = BUCHO_TMUX_LINE_RE.sub("", text)
+    # Skill template blocks
+    text = _strip_skill_template(text)
+    # Clean up excessive whitespace from removals
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+# Keep backward compat alias
+strip_privacy_tags = strip_noise
+
+
+def _extract_text_from_content(content: Any) -> str:
+    """Extract text from message content (string or content blocks).
+
+    sui-memory style: only type=text blocks are extracted.
+    thinking, tool_use, tool_result blocks are excluded from assistant content.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "text":
+                parts.append(block.get("text", ""))
+        return "\n".join(parts)
+    return str(content)[:500] if content else ""
+
+
+def parse_jsonl(path: Path) -> list[ParsedEvent]:
+    """Parse a Claude Code JSONL session log into structured events.
+
+    Args:
+        path: Path to the .jsonl file
+
+    Returns:
+        List of ParsedEvent objects, filtered and cleaned
+    """
+    events: list[ParsedEvent] = []
+
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                raw = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            event_type = raw.get("type", "")
+
+            if event_type in SKIP_TYPES:
+                continue
+
+            # sui-memory style: only user and assistant text blocks
+            # progress/tool_result events are skipped entirely
+            if event_type == "progress":
+                continue
+
+            if event_type in ("user", "assistant"):
+                msg = raw.get("message", {})
+                content = msg.get("content", "")
+                text = _extract_text_from_content(content)
+                text = strip_noise(text)
+
+                if not text.strip():
+                    continue
+
+                # Skip claude-mem observation agent boilerplate prompts
+                if any(marker in text for marker in OBSERVATION_BOILERPLATE_MARKERS):
+                    continue
+
+                events.append(ParsedEvent(
+                    type=event_type,
+                    text=text,
+                    timestamp=raw.get("timestamp", ""),
+                    prompt_id=raw.get("promptId", ""),
+                ))
+
+    return events
