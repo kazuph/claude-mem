@@ -8,7 +8,7 @@
           {
             "type": "command",
             "command": "uv run --project \"${CLAUDE_PLUGIN_ROOT}/core\" python -m indexer --backfill",
-            "timeout": 30
+            "timeout": 300
           }
         ]
       }
@@ -19,7 +19,7 @@
           {
             "type": "command",
             "command": "uv run --project \"${CLAUDE_PLUGIN_ROOT}/core\" python -m injector",
-            "timeout": 10
+            "timeout": 30
           }
         ]
       }
@@ -30,7 +30,7 @@
           {
             "type": "command",
             "command": "uv run --project \"${CLAUDE_PLUGIN_ROOT}/core\" python -m hook",
-            "timeout": 15
+            "timeout": 30
           }
         ]
       }

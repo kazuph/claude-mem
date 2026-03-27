@@ -129,6 +129,9 @@ class MemoryStore:
         Trigram tokenizer requires 3+ character queries. For shorter queries
         (common in Japanese: バグ, 修正, 認証 etc.), falls back to LIKE search.
         """
+        if not query or not query.strip():
+            return []
+
         # Split query into terms; trigram needs 3+ chars per term
         terms = query.split()
         # Check if ALL terms are long enough for FTS5 trigram

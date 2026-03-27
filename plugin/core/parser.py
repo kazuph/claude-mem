@@ -49,37 +49,65 @@ OBSERVATION_BOILERPLATE_MARKERS = [
 # before a short user question (heuristic: lines starting with # or
 # containing skill-like patterns)
 def _strip_skill_template(text: str) -> str:
-    """Remove skill template blocks injected at the start of user messages."""
+    """Remove skill template blocks injected at the start of user messages.
+
+    Strategy: find the skill block boundary by scanning forward from
+    'Base directory for this skill:'. Skill blocks contain markdown
+    headers, bullets, code blocks, etc. The first blank line followed by
+    non-markdown content marks the transition to user message.
+    We keep ALL lines after the transition (preserving multi-line user messages).
+    """
     marker = "Base directory for this skill:"
     if marker not in text:
         return text
     idx = text.index(marker)
     before = text[:idx]
     after_marker = text[idx:]
-    # Find the last non-empty line that looks like skill content
-    # Split into lines and find where the user's actual message starts
     lines = after_marker.split("\n")
-    user_start = len(lines)  # default: everything is skill content
-    # Walk backwards from end to find user's actual message
-    # Heuristic: skill templates have markdown headers (#), bullet points,
-    # code blocks, and directive-style content
-    for i in range(len(lines) - 1, -1, -1):
-        line = lines[i].strip()
-        if not line:
+
+    # Scan forward: skip the skill template content
+    # Skill content = markdown-formatted lines (headers, bullets, code, tables, directives)
+    # User content starts after a blank line where the following lines are NOT markdown
+    in_code_block = False
+    skill_end = len(lines)  # default: everything is skill
+
+    for i, raw_line in enumerate(lines):
+        line = raw_line.strip()
+
+        # Track code blocks
+        if line.startswith("```"):
+            in_code_block = not in_code_block
             continue
-        # If this line looks like a user question (short, no markdown formatting)
-        if (not line.startswith("#") and
-            not line.startswith("-") and
-            not line.startswith("*") and
-            not line.startswith(">") and
-            not line.startswith("`") and
-            not line.startswith("|") and
-            ":" not in line[:30] and
-            len(line) < 200):
-            user_start = i
+        if in_code_block:
+            continue
+
+        # Blank line = potential boundary
+        if not line and i > 2:
+            # Look at the next non-blank line
+            for j in range(i + 1, len(lines)):
+                next_line = lines[j].strip()
+                if not next_line:
+                    continue
+                # If next line is NOT markdown formatting, it's user content
+                is_markdown = (
+                    next_line.startswith("#") or
+                    next_line.startswith("-") or
+                    next_line.startswith("*") or
+                    next_line.startswith(">") or
+                    next_line.startswith("`") or
+                    next_line.startswith("|") or
+                    next_line.startswith("---")
+                )
+                if not is_markdown:
+                    skill_end = j
+                    break
+                break  # next non-blank line is still markdown, continue scanning
+
+        if skill_end < len(lines):
             break
-    # Everything before user_start is skill content to remove
-    user_lines = lines[user_start:]
+
+    # Keep ALL lines from skill_end onwards (preserving multi-line user messages)
+    user_lines = lines[skill_end:]
     return (before + "\n".join(user_lines)).strip()
 
 # Event types we care about
