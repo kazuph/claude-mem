@@ -18,4 +18,4 @@ private/
 src/ui/viewer.html
 
 # Local MCP server config (for development only)
-.mcp.json
+.mcp.json__pycache__/
