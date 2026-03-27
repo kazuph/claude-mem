@@ -121,22 +121,23 @@ def backfill_scan(
 if __name__ == "__main__":
     import sys
 
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    # Log to stderr to avoid polluting hook stdout
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s", stream=sys.stderr)
 
     if len(sys.argv) < 2:
-        print("Usage:")
-        print("  python indexer.py <session_id> <jsonl_path>")
-        print("  python indexer.py --backfill [projects_dir]")
+        print("Usage:", file=sys.stderr)
+        print("  python indexer.py <session_id> <jsonl_path>", file=sys.stderr)
+        print("  python indexer.py --backfill [projects_dir]", file=sys.stderr)
         sys.exit(1)
 
     if sys.argv[1] == "--backfill":
         projects_dir = Path(sys.argv[2]) if len(sys.argv) > 2 else DEFAULT_PROJECTS_DIR
         result = backfill_scan(projects_dir=projects_dir)
-        print(f"Backfill complete: {result}")
+        print(f"Backfill complete: {result}", file=sys.stderr)
     else:
         if len(sys.argv) < 3:
-            print("Error: need both session_id and jsonl_path")
+            print("Error: need both session_id and jsonl_path", file=sys.stderr)
             sys.exit(1)
         jsonl_path = Path(sys.argv[2])
         count = index_session(jsonl_path)
-        print(f"Indexed {count} chunks")
+        print(f"Indexed {count} chunks", file=sys.stderr)
