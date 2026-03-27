@@ -1,0 +1,42 @@
+=== claude-mem v2 CLI Demo ===
+
+$ uv run python cli.py stats
+Database: /tmp/v2-demo.db
+Sessions: 759
+Chunks:   1553
+
+$ uv run python cli.py search 'フィボナッチ'
+No results found.
+
+$ uv run python cli.py search 'authentication'
+
+--- Result 1 [85d2f3fd] [-Users-kazuhirohomma-src-github-com-Photosynth-inc-checkin-poc] ---
+Q: 4番さんへ
+
+  2026-03-18 時点で確認したところ、staging 環境では JWT 検証を使ったチェックインは現在成立しません。
+
+  確認内容:
+  - preview と staging で secret 名一覧自体は一致しています
+  - organizations.federated_tenant_id など、JWT の tenant 解決に必要な DB データも一致しています
+  - ただし実際に /api/v1/sessions を Bearer token 付きで叩くと、
+    - preview: INVALID_TOKEN
+    - staging: J...
+
+--- Result 2 [85d2f3fd] [-Users-kazuhirohomma-src-github-com-Photosynth-inc-checkin-poc] ---
+Q: はい、投稿お願いします。そして投稿してからでいいので、実際にJWTを使ってチェックインのエンドポイントに対して認証可能かどうかをプレビューステージング本番で全て同一であるかチェックお願いします。つまりアプリエンジニアに渡す前にこちらの側で確認できることはすべて確認している状態にしたいです。
+
+A: 投稿完了。次に3環境でJWT検証の一貫性チェック。テスト用JWTを生成して各環境のエンドポイントを叩く。
+このスクリプトはRSA鍵を生成する（JWKSとは無関係）ので使えない。実際のid-apiからJWTを取得するか、各環境に同じダミートークンを投げてエラーレスポンスの一貫性を確認する方法でチ...
+
+--- Result 3 [6ee16b3d] [-Users-kazuhirohomma--claude-plugins-cache-kazuph-claude-mem-jp-claude-mem-7-5-0] ---
+(cont.)   <title>Pre-created test users in otp-auth test suite</title>
+  <subtitle>Added user pre-creation logic to otp-auth.test for complete authentication flow validation.</subtitle>
+  <facts>
+    <fact>otp-auth.test now pre-creates test users before running OTP authentication tests.</fact>
+    <...
+
+(3 results)
+
+$ uv run pytest tests/ -v (50 tests)
+..................................................                       [100%]
+50 passed in 0.41s

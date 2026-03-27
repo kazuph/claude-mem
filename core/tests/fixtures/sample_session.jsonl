@@ -1,0 +1,21 @@
+{"type":"system","message":{"role":"system","content":"system prompt"},"timestamp":"2026-03-26T10:00:00Z","uuid":"sys-1"}
+{"type":"file-history-snapshot","messageId":"snap-1","snapshot":{"messageId":"snap-1","trackedFileBackups":{},"timestamp":"2026-03-26T10:00:01Z"},"isSnapshotUpdate":false}
+{"type":"user","message":{"role":"user","content":"Pythonでフィボナッチ数列を書いて"},"timestamp":"2026-03-26T10:00:10Z","uuid":"u-1","promptId":"p-1"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"フィボナッチ数列の実装ですね。再帰とイテレーティブの2つの方法があります。"}]},"timestamp":"2026-03-26T10:00:15Z","uuid":"a-1"}
+{"type":"progress","data":{"type":"tool_result","tool":"Write","content":"File created: fib.py"},"timestamp":"2026-03-26T10:00:20Z","uuid":"p-1"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"fib.pyを作成しました。イテレーティブ版で実装しています。"}]},"timestamp":"2026-03-26T10:00:25Z","uuid":"a-2"}
+{"type":"user","message":{"role":"user","content":"テストも書いて"},"timestamp":"2026-03-26T10:01:00Z","uuid":"u-2","promptId":"p-2"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"pytestでテストを書きますね。"}]},"timestamp":"2026-03-26T10:01:05Z","uuid":"a-3"}
+{"type":"progress","data":{"type":"tool_result","tool":"Write","content":"File created: test_fib.py"},"timestamp":"2026-03-26T10:01:10Z","uuid":"p-2"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"test_fib.pyを作成しました。境界値テストも含めています。"}]},"timestamp":"2026-03-26T10:01:15Z","uuid":"a-4"}
+{"type":"user","message":{"role":"user","content":"<private>秘密のAPIキー: sk-abc123</private>これを使ってAPIを呼んで"},"timestamp":"2026-03-26T10:02:00Z","uuid":"u-3","promptId":"p-3"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"APIの呼び出しを実装します。"}]},"timestamp":"2026-03-26T10:02:05Z","uuid":"a-5"}
+{"type":"user","message":{"role":"user","content":"<system-reminder>\nUserPromptSubmit hook additional context: [reviw-plugin] Session Start Guide\n\n【Task Resumption】verify the following:\n  → Check active worktree\n  → Review TODOs\n</system-reminder>\ndotenvxの--overloadオプションについて教えて"},"timestamp":"2026-03-26T10:04:00Z","uuid":"u-4","promptId":"p-4"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"dotenvxの--overloadは、既存の環境変数を.envファイルの値で上書きするオプションです。"}]},"timestamp":"2026-03-26T10:04:05Z","uuid":"a-6"}
+{"type":"user","message":{"role":"user","content":"<task-notification>\n<task-id>abc123</task-id>\n<status>completed</status>\n<summary>Build succeeded</summary>\n</task-notification>\nLinearのissueを確認して"},"timestamp":"2026-03-26T10:05:00Z","uuid":"u-5","promptId":"p-5"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Linearのissueを確認しますね。"}]},"timestamp":"2026-03-26T10:05:05Z","uuid":"a-7"}
+{"type":"user","message":{"role":"user","content":"Base directory for this skill: /Users/kazuhirohomma/.claude/skills/bucho\n\n# 部長モード (bucho)\n\nあなたは**部長**です。\ntmux経由で部下を指揮してください。\n\nworktreeの設定を教えて"},"timestamp":"2026-03-26T10:06:00Z","uuid":"u-6","promptId":"p-6"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"worktreeの設定手順を説明しますね。git worktreeコマンドで新しい作業ディレクトリを作成できます。"}]},"timestamp":"2026-03-26T10:06:05Z","uuid":"a-8"}
+{"type":"user","message":{"role":"user","content":"<observed_from_primary_session>\n  <user_request>認証フローを実装して</user_request>\n  <assistant_response>Firebase Authを使います</assistant_response>\n</observed_from_primary_session>\nこの認証フローのレビューをして"},"timestamp":"2026-03-26T10:07:00Z","uuid":"u-7","promptId":"p-7"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"認証フローのレビューを行います。"}]},"timestamp":"2026-03-26T10:07:05Z","uuid":"a-9"}
+{"type":"queue-operation","operation":"enqueue","timestamp":"2026-03-26T10:08:00Z","uuid":"q-1"}
