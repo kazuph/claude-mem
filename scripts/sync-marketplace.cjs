@@ -58,10 +58,21 @@ function getPluginVersion() {
 }
 
 // Normal rsync for main branch or fresh install
+// First: copy core/ into plugin/core/ so hooks.json can use ${CLAUDE_PLUGIN_ROOT}/core/
+console.log('Copying core/ into plugin/core/...');
+try {
+  execSync(
+    'rsync -av --delete --exclude=__pycache__ --exclude=.venv --exclude=.pytest_cache core/ plugin/core/',
+    { stdio: 'inherit' }
+  );
+} catch (error) {
+  console.log('\x1b[33m%s\x1b[0m', 'Note: core/ not found, skipping copy to plugin/core/');
+}
+
 console.log('Syncing to marketplace...');
 try {
   execSync(
-    'rsync -av --delete --exclude=.git --exclude=/.mcp.json ./ ~/.claude/plugins/marketplaces/kazuph-claude-mem-jp/',
+    'rsync -av --delete --exclude=.git --exclude=/.mcp.json --exclude=__pycache__ --exclude=.venv --exclude=.pytest_cache ./ ~/.claude/plugins/marketplaces/kazuph-claude-mem-jp/',
     { stdio: 'inherit' }
   );
 
@@ -75,6 +86,7 @@ try {
   const version = getPluginVersion();
   const CACHE_VERSION_PATH = path.join(CACHE_BASE_PATH, version);
 
+  // plugin/core/ is already populated above, so cache sync includes it
   console.log(`Syncing to cache folder (version ${version})...`);
   execSync(
     `rsync -av --delete --exclude=.git plugin/ "${CACHE_VERSION_PATH}/"`,
