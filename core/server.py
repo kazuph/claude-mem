@@ -6,10 +6,11 @@ Port 37778 by default (coexists with existing 37777 worker).
 
 from __future__ import annotations
 
+import json as json_mod
 import os
-from dataclasses import asdict
 
 from litestar import Litestar, get
+from litestar.response import Response
 from litestar.params import Parameter
 
 from store import MemoryStore, DEFAULT_DB_PATH, SearchResult
@@ -74,14 +75,22 @@ async def recent(
 
 
 @get("/api/health")
-async def health() -> dict:
+async def health() -> Response:
     """Health check endpoint."""
     try:
         store = _get_store()
         store.get_stats()
-        return {"status": "ok", "version": "2.0.0"}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return Response(
+            content=json_mod.dumps({"status": "ok", "version": "2.0.0"}),
+            media_type="application/json",
+            status_code=200,
+        )
+    except Exception:
+        return Response(
+            content=json_mod.dumps({"status": "error"}),
+            media_type="application/json",
+            status_code=500,
+        )
 
 
 @get("/api/stats")

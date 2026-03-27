@@ -1,7 +1,10 @@
 """Tests for SQLite FTS5 store — real SQLite, no mocks."""
 
+import sqlite3
 import tempfile
 from pathlib import Path
+
+import pytest
 
 from chunker import Chunk
 from store import MemoryStore
@@ -9,8 +12,9 @@ from store import MemoryStore
 
 def _make_store() -> MemoryStore:
     """Create a store with a temporary database."""
-    tmp = tempfile.mktemp(suffix=".db")
-    return MemoryStore(db_path=tmp)
+    f = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+    f.close()
+    return MemoryStore(db_path=f.name)
 
 
 def _sample_chunks() -> list[Chunk]:
@@ -44,6 +48,18 @@ def test_search_fts_finds_matching_text():
         results = store.search_fts("フィボナッチ")
         assert len(results) >= 1
         assert "フィボナッチ" in results[0].text_content
+    finally:
+        store.close()
+
+
+def test_search_fts_empty_query_returns_empty():
+    store = _make_store()
+    try:
+        sid = store.insert_session("sess-001", "/project/a")
+        store.insert_chunks(sid, _sample_chunks())
+
+        assert store.search_fts("") == []
+        assert store.search_fts("   ") == []
     finally:
         store.close()
 
@@ -128,10 +144,7 @@ def test_duplicate_session_raises():
     store = _make_store()
     try:
         store.insert_session("sess-001", "/project/a")
-        try:
+        with pytest.raises(sqlite3.IntegrityError):
             store.insert_session("sess-001", "/project/a")
-            assert False, "Should have raised"
-        except Exception:
-            pass  # Expected: UNIQUE constraint
     finally:
         store.close()

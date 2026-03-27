@@ -5,7 +5,14 @@ Also tests backfill and memory usage.
 """
 
 import os
-import resource
+import platform
+import sys
+
+import pytest
+
+if sys.platform != "win32":
+    import resource
+
 import shutil
 import tempfile
 from pathlib import Path
@@ -109,6 +116,7 @@ def test_backfill_multiple_sessions():
         store.close()
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="resource module not available on Windows")
 def test_memory_usage_peak_rss():
     """Verify peak RSS stays under 100MB for indexing a session."""
     db_path = Path(tempfile.mktemp(suffix=".db"))
@@ -123,7 +131,6 @@ def test_memory_usage_peak_rss():
     after = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
 
     # On macOS, ru_maxrss is in bytes; on Linux, it's in KB
-    import platform
     if platform.system() == "Darwin":
         peak_mb = after / (1024 * 1024)
     else:
