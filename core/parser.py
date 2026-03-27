@@ -131,55 +131,57 @@ def _extract_text_from_content(content: Any) -> str:
     return str(content)[:500] if content else ""
 
 
+def _parse_line(raw_line: str) -> ParsedEvent | None:
+    """Parse a single JSONL line into a ParsedEvent, or None if filtered."""
+    raw_line = raw_line.strip()
+    if not raw_line:
+        return None
+    try:
+        raw = json.loads(raw_line)
+    except json.JSONDecodeError:
+        return None
+
+    event_type = raw.get("type", "")
+
+    if event_type in SKIP_TYPES or event_type == "progress":
+        return None
+
+    if event_type not in ("user", "assistant"):
+        return None
+
+    msg = raw.get("message", {})
+    content = msg.get("content", "")
+    text = _extract_text_from_content(content)
+    text = strip_noise(text)
+
+    if not text.strip():
+        return None
+
+    if any(marker in text for marker in OBSERVATION_BOILERPLATE_MARKERS):
+        return None
+
+    return ParsedEvent(
+        type=event_type,
+        text=text,
+        timestamp=raw.get("timestamp", ""),
+        prompt_id=raw.get("promptId", ""),
+    )
+
+
 def parse_jsonl(path: Path) -> list[ParsedEvent]:
-    """Parse a Claude Code JSONL session log into structured events.
+    """Parse a Claude Code JSONL session log into structured events."""
+    with open(path, "r", encoding="utf-8") as f:
+        return parse_jsonl_lines(f.readlines())
 
-    Args:
-        path: Path to the .jsonl file
 
-    Returns:
-        List of ParsedEvent objects, filtered and cleaned
+def parse_jsonl_lines(lines: list[str]) -> list[ParsedEvent]:
+    """Parse a list of JSONL lines into structured events.
+
+    Used by hook.py for incremental (diff-only) parsing.
     """
     events: list[ParsedEvent] = []
-
-    with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                raw = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-
-            event_type = raw.get("type", "")
-
-            if event_type in SKIP_TYPES:
-                continue
-
-            # sui-memory style: only user and assistant text blocks
-            # progress/tool_result events are skipped entirely
-            if event_type == "progress":
-                continue
-
-            if event_type in ("user", "assistant"):
-                msg = raw.get("message", {})
-                content = msg.get("content", "")
-                text = _extract_text_from_content(content)
-                text = strip_noise(text)
-
-                if not text.strip():
-                    continue
-
-                # Skip claude-mem observation agent boilerplate prompts
-                if any(marker in text for marker in OBSERVATION_BOILERPLATE_MARKERS):
-                    continue
-
-                events.append(ParsedEvent(
-                    type=event_type,
-                    text=text,
-                    timestamp=raw.get("timestamp", ""),
-                    prompt_id=raw.get("promptId", ""),
-                ))
-
+    for line in lines:
+        event = _parse_line(line)
+        if event is not None:
+            events.append(event)
     return events

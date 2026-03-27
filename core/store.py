@@ -53,6 +53,12 @@ CREATE TRIGGER IF NOT EXISTS memory_chunks_au AFTER UPDATE ON memory_chunks BEGI
         VALUES('delete', old.id, old.text_content);
     INSERT INTO memory_chunks_fts(rowid, text_content) VALUES (new.id, new.text_content);
 END;
+
+-- Track incremental indexing progress per session (for Stop hook)
+CREATE TABLE IF NOT EXISTS indexed_lines (
+    session_id TEXT PRIMARY KEY,
+    last_line_number INTEGER NOT NULL DEFAULT 0
+);
 """
 
 
@@ -226,6 +232,23 @@ class MemoryStore:
             "SELECT 1 FROM sessions WHERE session_id = ?", (session_id,)
         ).fetchone()
         return row is not None
+
+    def get_indexed_lines(self, session_id: str) -> int:
+        """Get the last indexed line number for a session."""
+        row = self.conn.execute(
+            "SELECT last_line_number FROM indexed_lines WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+        return row[0] if row else 0
+
+    def set_indexed_lines(self, session_id: str, line_number: int) -> None:
+        """Update the last indexed line number for a session."""
+        self.conn.execute(
+            "INSERT INTO indexed_lines (session_id, last_line_number) VALUES (?, ?) "
+            "ON CONFLICT(session_id) DO UPDATE SET last_line_number = ?",
+            (session_id, line_number, line_number),
+        )
+        self.conn.commit()
 
     def get_stats(self) -> dict:
         """Get database statistics."""

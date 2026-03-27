@@ -246,10 +246,58 @@ dev = ["pytest>=8.0", "pytest-asyncio>=0.24", "httpx>=0.27"]
 | `worktree git` | 2件 | なし | **非常に有用** — cc --worktreeの問題点 |
 | `playwright テスト` | 2件 | なし | **有用** — E2Eテスト戦略 |
 
+## Phase B: hook.py + injector.py (sui-memory方式hooks)
+
+### 実装内容
+
+| File | Role | Protocol |
+|------|------|----------|
+| `hook.py` | Stop hook: 毎ターン差分indexing | stdin: `{session_id, transcript_path, cwd, ...}` → stderr only |
+| `injector.py` | UserPromptSubmit hook: コンテキスト注入 | stdin: `{session_id, prompt, cwd, ...}` → stdout: `<claude-mem-context>` |
+| `store.py` | `indexed_lines`テーブル追加 | 差分管理: session_idごとにlast_line_number |
+| `parser.py` | `parse_jsonl_lines()`追加 | 行リスト版パーサー（差分parsing用） |
+
+### Hook動作フロー
+
+```
+Stop hook (毎ターン):
+  stdin JSON → transcript_path特定 → 差分行読み取り → parse → chunk → store
+
+UserPromptSubmit hook (毎プロンプト):
+  stdin JSON → prompt取得 → search_fts(prompt[:200]) → rank_results → stdout
+```
+
+### 公式Hooks仕様準拠 (Codex検証済み)
+
+- `transcript_path`: JSONLファイルパスを直接提供（自分でパス組み立て不要）
+- `prompt`: ユーザーのプロンプトテキスト（`query`ではない）
+- Stop: stdoutを汚さない（stderrのみ）
+- UserPromptSubmit: stdoutがClaudeへの追加文脈になる
+
+### settings.json設定例
+
+```json
+{
+  "hooks": {
+    "Stop": [{"command": "uv run --project /path/to/core python -m hook", "timeout": 10000}],
+    "UserPromptSubmit": [{"command": "uv run --project /path/to/core python -m injector", "timeout": 5000}]
+  }
+}
+```
+
+### テスト結果 (Phase B追加分)
+
+| Module | Tests | Status |
+|--------|-------|--------|
+| hook | 6 | All pass |
+| injector | 6 | All pass |
+| hooks_integration | 3 | All pass |
+| **Total (全体)** | **73** | **All pass in 0.50s** |
+
 ## Notes
 
-- vector search (sqlite-vec) はPhase Bで実装予定。`fuse_rrf()` インターフェースは準備済み
-- 既存TypeScript workerとの統合はPhase Cで実施予定
+- vector search (sqlite-vec) はPhase Cで実装予定。`fuse_rrf()` インターフェースは準備済み
+- 既存TypeScript workerとの統合はPhase Dで実施予定
 - `core/` ディレクトリはまだ未コミット状態（`git status` で untracked）
 
 ## Dogfooding Report (実用性検証)
