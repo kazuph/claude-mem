@@ -335,14 +335,17 @@ def run_implicit_vote(
     if not assistant_keywords:
         return {"voted": 0, "reason": "no keywords in assistant response"}
 
+    # Score all candidates, vote for only the BEST one
+    # Voting all matches defeats the purpose of weighting
     store = MemoryStore(db_path=db_path)
     voted = 0
     try:
+        best_cid = None
+        best_score = 0
         for cid in chunk_ids:
             chunk = store.get_chunk(cid)
             if not chunk:
                 continue
-            # Use A-part keywords only (more relevant for comparing with assistant output)
             chunk_keywords = _extract_answer_keywords(chunk.text_content)
             if not chunk_keywords:
                 continue
@@ -351,11 +354,19 @@ def run_implicit_vote(
             overlap_count = len(overlap)
             overlap_ratio = overlap_count / len(chunk_keywords) if chunk_keywords else 0
 
-            # Threshold: overlap >= 3 OR overlap ratio >= 15%
+            # Must meet minimum threshold
             if overlap_count >= VOTE_MIN_OVERLAP or overlap_ratio >= VOTE_MIN_RATIO:
-                store.increment_vote(cid)
-                voted += 1
-                logger.info(f"Voted for chunk {cid}: {overlap_count} overlaps ({overlap_ratio:.0%})")
+                # Score: overlap_count weighted by ratio for tie-breaking
+                score = overlap_count + overlap_ratio
+                if score > best_score:
+                    best_score = score
+                    best_cid = cid
+
+        # Vote for only the single best match
+        if best_cid is not None:
+            store.increment_vote(best_cid)
+            voted = 1
+            logger.info(f"Voted for best chunk {best_cid} (score={best_score:.2f})")
     finally:
         store.close()
 
