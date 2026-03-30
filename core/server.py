@@ -297,7 +297,7 @@ app = Litestar(
 )
 
 
-def run_server(port: int = PORT, host: str = "127.0.0.1") -> None:
+def run_server(port: int = PORT, host: str = "0.0.0.0") -> None:
     import uvicorn
     uvicorn.run(app, host=host, port=port, log_level="info")
 
