@@ -62,7 +62,39 @@ def run_injector(
     if not query:
         return ""
 
-    search_query = query[:200].strip()
+    # Extract meaningful keywords from prompt for better FTS5 search
+    # Japanese text has no spaces, so split on ASCII/non-ASCII boundaries
+    # e.g., "JWTについて教えて" → ["JWT", "について教えて"]
+    import re
+    _stopwords = {
+        "the", "and", "for", "that", "this", "with", "from", "are", "was", "were",
+        "been", "have", "has", "had", "but", "not", "you", "all", "can", "her",
+        "his", "one", "our", "out", "also", "about", "into", "just", "than",
+        "them", "then", "some", "what", "when", "who", "how", "its", "may",
+        "する", "ある", "いる", "なる", "れる", "できる", "ない", "この", "その",
+        "これ", "それ", "です", "ます", "した", "して", "から", "まで", "ため",
+        "こと", "もの", "ところ", "よう", "ほう", "って", "について", "という",
+        "ている", "てい", "ました", "ません", "でしょう", "ですか", "ですが",
+        "けど", "だけど", "なので", "だから", "それで", "ところで",
+        "教えて", "ください", "お願い", "思い", "知り", "やっ",
+    }
+    # Split on: spaces, ASCII/non-ASCII boundaries, punctuation
+    raw_text = query[:500]
+    # First split by spaces
+    space_words = raw_text.split()
+    # Then split each word on ASCII/non-ASCII boundaries
+    all_tokens: list[str] = []
+    for w in space_words:
+        # Split "JWTについて教えて" → ["JWT", "について教えて"]
+        parts = re.split(r'(?<=[a-zA-Z0-9_./-])(?=[^\x00-\x7F])|(?<=[^\x00-\x7F])(?=[a-zA-Z0-9_./-])', w)
+        all_tokens.extend(parts)
+    keywords = [t for t in all_tokens if len(t) >= 3 and t.lower() not in _stopwords]
+    if not keywords:
+        # Fallback: use first 200 chars as-is
+        search_query = query[:200].strip()
+    else:
+        # Use top keywords (limit to avoid overly long query)
+        search_query = " ".join(keywords[:15])
     if not search_query:
         return ""
 
