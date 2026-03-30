@@ -62,11 +62,6 @@ CREATE TABLE IF NOT EXISTS indexed_lines (
 """
 
 
-MIGRATION_VOTE_COLUMNS = """
--- Add vote columns if they don't exist (idempotent migration)
--- SQLite doesn't have IF NOT EXISTS for ALTER TABLE, so we use a trick
-"""
-
 
 @dataclass
 class SearchResult:

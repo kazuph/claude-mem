@@ -70,7 +70,7 @@ def run_injector(
     cwd = input_data.get("cwd", "")
     project_path = None
     if cwd:
-        project_path = cwd.replace("/", "-").lstrip("-")
+        project_path = cwd.replace("\\", "/").replace("/", "-").lstrip("-")
 
     store = MemoryStore(db_path=db_path)
     try:

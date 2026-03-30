@@ -50,6 +50,7 @@ async def search(
 ) -> dict:
     if not q:
         return {"results": [], "query": q, "count": 0}
+    limit = min(limit, 100)
     store = _get_store()
     results = store.search_fts(q, limit=limit, project_path=project)
     return {
@@ -64,6 +65,7 @@ async def recent(
     limit: int = Parameter(query="limit", default=20),
     project: str | None = Parameter(query="project", default=None),
 ) -> dict:
+    limit = min(limit, 100)
     store = _get_store()
     results = store.get_recent(limit=limit, project_path=project)
     return {
@@ -172,7 +174,12 @@ let debounceTimer = null;
 
 function relTime(iso) {
   if (!iso) return '';
-  const d = new Date(iso.includes('T') ? iso : iso + 'Z');
+  // Handle SQLite's "YYYY-MM-DD HH:MM:SS" format (no T, no Z)
+  let s = iso.replace(' ', 'T');
+  if (!s.includes('T')) s += 'T00:00:00';
+  if (!s.endsWith('Z') && !s.includes('+') && !s.includes('-', 10)) s += 'Z';
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return iso;
   const now = Date.now();
   const diff = (now - d.getTime()) / 1000;
   if (diff < 60) return 'just now';

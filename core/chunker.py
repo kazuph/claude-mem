@@ -1,7 +1,7 @@
 """Chunker: splits parsed events into Q&A chunks for indexing.
 
-Groups user prompts with their corresponding assistant responses and tool
-results into coherent chunks suitable for FTS5 indexing.
+Groups user prompts with their corresponding assistant text responses
+into coherent chunks suitable for FTS5 indexing (sui-memory style: text only).
 """
 
 from __future__ import annotations
@@ -12,9 +12,7 @@ from parser import ParsedEvent
 
 # Token estimation: ~4 chars per token (conservative for mixed EN/JP)
 CHARS_PER_TOKEN = 4
-MIN_CHUNK_TOKENS = 150
 MAX_CHUNK_TOKENS = 800
-TARGET_CHUNK_TOKENS = 400
 
 
 @dataclass
