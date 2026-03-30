@@ -62,7 +62,26 @@ def run_injector(
     if not query:
         return ""
 
-    search_query = query[:200].strip()
+    # Extract meaningful keywords from prompt for better FTS5 search
+    # Full prompt text often has too many common words; extract terms >= 3 chars
+    # that aren't pure stopwords
+    _stopwords = {
+        "the", "and", "for", "that", "this", "with", "from", "are", "was", "were",
+        "been", "have", "has", "had", "but", "not", "you", "all", "can", "her",
+        "his", "one", "our", "out", "also", "about", "into", "just", "than",
+        "them", "then", "some", "what", "when", "who", "how", "its", "may",
+        "する", "ある", "いる", "なる", "れる", "できる", "ない", "この", "その",
+        "これ", "それ", "です", "ます", "した", "して", "から", "まで", "ため",
+        "こと", "もの", "ところ", "よう", "ほう",
+    }
+    words = query[:500].split()
+    keywords = [w for w in words if len(w) >= 3 and w.lower() not in _stopwords]
+    if not keywords:
+        # Fallback: use first 200 chars as-is
+        search_query = query[:200].strip()
+    else:
+        # Use top keywords (limit to avoid overly long query)
+        search_query = " ".join(keywords[:15])
     if not search_query:
         return ""
 
