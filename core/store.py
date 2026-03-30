@@ -62,6 +62,12 @@ CREATE TABLE IF NOT EXISTS indexed_lines (
 """
 
 
+MIGRATION_VOTE_COLUMNS = """
+-- Add vote columns if they don't exist (idempotent migration)
+-- SQLite doesn't have IF NOT EXISTS for ALTER TABLE, so we use a trick
+"""
+
+
 @dataclass
 class SearchResult:
     """A search result from FTS5."""
@@ -74,6 +80,8 @@ class SearchResult:
     text_content: str
     rank: float
     created_at: str
+    vote_count: int = 0
+    last_recalled_at: str = ""
 
 
 class MemoryStore:
@@ -90,7 +98,17 @@ class MemoryStore:
 
     def _init_schema(self) -> None:
         self.conn.executescript(SCHEMA_SQL)
+        # Migrate: add vote columns to existing DBs
+        self._migrate_vote_columns()
         self.conn.commit()
+
+    def _migrate_vote_columns(self) -> None:
+        """Add vote_count and last_recalled_at columns if missing."""
+        cols = {r[1] for r in self.conn.execute("PRAGMA table_info(memory_chunks)").fetchall()}
+        if "vote_count" not in cols:
+            self.conn.execute("ALTER TABLE memory_chunks ADD COLUMN vote_count INTEGER DEFAULT 0")
+        if "last_recalled_at" not in cols:
+            self.conn.execute("ALTER TABLE memory_chunks ADD COLUMN last_recalled_at DATETIME")
 
     def close(self) -> None:
         self.conn.close()
@@ -139,13 +157,12 @@ class MemoryStore:
         like_terms = [t for t in terms if len(t) < 3]
 
         if fts_terms and not like_terms:
-            # All terms are 3+ chars: pure FTS5 search
-            # For trigram tokenizer, each term is quoted individually and OR'd
             fts_query = " OR ".join(f'"{t.replace(chr(34), chr(34)+chr(34))}"' for t in fts_terms)
             sql = """
                 SELECT mc.id, s.session_id, s.project_path, mc.prompt_number,
                        mc.chunk_type, mc.text_content, mc.created_at,
-                       memory_chunks_fts.rank
+                       memory_chunks_fts.rank,
+                       mc.vote_count, mc.last_recalled_at
                 FROM memory_chunks_fts
                 JOIN memory_chunks mc ON mc.id = memory_chunks_fts.rowid
                 JOIN sessions s ON s.id = mc.session_id
@@ -160,7 +177,8 @@ class MemoryStore:
             sql = f"""
                 SELECT mc.id, s.session_id, s.project_path, mc.prompt_number,
                        mc.chunk_type, mc.text_content, mc.created_at,
-                       0.0 as rank
+                       0.0 as rank,
+                       mc.vote_count, mc.last_recalled_at
                 FROM memory_chunks mc
                 JOIN sessions s ON s.id = mc.session_id
                 WHERE {conditions}
@@ -179,19 +197,22 @@ class MemoryStore:
         params.append(limit)
 
         rows = self.conn.execute(sql, params).fetchall()
-        return [
-            SearchResult(
-                chunk_id=r["id"],
-                session_id=r["session_id"],
-                project_path=r["project_path"],
-                prompt_number=r["prompt_number"],
-                chunk_type=r["chunk_type"],
-                text_content=r["text_content"],
-                rank=r["rank"],
-                created_at=r["created_at"],
-            )
-            for r in rows
-        ]
+        return [self._row_to_result(r) for r in rows]
+
+    @staticmethod
+    def _row_to_result(r: sqlite3.Row) -> SearchResult:
+        return SearchResult(
+            chunk_id=r["id"],
+            session_id=r["session_id"],
+            project_path=r["project_path"],
+            prompt_number=r["prompt_number"],
+            chunk_type=r["chunk_type"],
+            text_content=r["text_content"],
+            rank=r["rank"],
+            created_at=r["created_at"],
+            vote_count=r["vote_count"] or 0,
+            last_recalled_at=r["last_recalled_at"] or "",
+        )
 
     def get_recent(
         self,
@@ -201,7 +222,8 @@ class MemoryStore:
         """Get most recent chunks."""
         sql = """
             SELECT mc.id, s.session_id, s.project_path, mc.prompt_number,
-                   mc.chunk_type, mc.text_content, mc.created_at, 0.0 as rank
+                   mc.chunk_type, mc.text_content, mc.created_at, 0.0 as rank,
+                   mc.vote_count, mc.last_recalled_at
             FROM memory_chunks mc
             JOIN sessions s ON s.id = mc.session_id
         """
@@ -215,19 +237,7 @@ class MemoryStore:
         params.append(limit)
 
         rows = self.conn.execute(sql, params).fetchall()
-        return [
-            SearchResult(
-                chunk_id=r["id"],
-                session_id=r["session_id"],
-                project_path=r["project_path"],
-                prompt_number=r["prompt_number"],
-                chunk_type=r["chunk_type"],
-                text_content=r["text_content"],
-                rank=r["rank"],
-                created_at=r["created_at"],
-            )
-            for r in rows
-        ]
+        return [self._row_to_result(r) for r in rows]
 
     def is_session_indexed(self, session_id: str) -> bool:
         """Check if a session has already been indexed."""
@@ -250,6 +260,38 @@ class MemoryStore:
             "INSERT INTO indexed_lines (session_id, last_line_number) VALUES (?, ?) "
             "ON CONFLICT(session_id) DO UPDATE SET last_line_number = ?",
             (session_id, line_number, line_number),
+        )
+        self.conn.commit()
+
+    def get_projects(self) -> list[dict]:
+        """Get distinct project paths with chunk counts."""
+        rows = self.conn.execute("""
+            SELECT s.project_path, COUNT(mc.id) as chunk_count
+            FROM sessions s
+            LEFT JOIN memory_chunks mc ON mc.session_id = s.id
+            GROUP BY s.project_path
+            ORDER BY chunk_count DESC
+        """).fetchall()
+        return [{"project_path": r[0], "chunk_count": r[1]} for r in rows]
+
+    def get_chunk(self, chunk_id: int) -> SearchResult | None:
+        """Get a single chunk by ID."""
+        row = self.conn.execute("""
+            SELECT mc.id, s.session_id, s.project_path, mc.prompt_number,
+                   mc.chunk_type, mc.text_content, mc.created_at, 0.0 as rank,
+                   mc.vote_count, mc.last_recalled_at
+            FROM memory_chunks mc
+            JOIN sessions s ON s.id = mc.session_id
+            WHERE mc.id = ?
+        """, (chunk_id,)).fetchone()
+        return self._row_to_result(row) if row else None
+
+    def increment_vote(self, chunk_id: int) -> None:
+        """Increment vote count and update last_recalled_at for a chunk."""
+        self.conn.execute(
+            "UPDATE memory_chunks SET vote_count = COALESCE(vote_count, 0) + 1, "
+            "last_recalled_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (chunk_id,),
         )
         self.conn.commit()
 

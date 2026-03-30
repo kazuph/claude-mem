@@ -21,14 +21,42 @@ import logging
 import sys
 from pathlib import Path
 
+import re
+
 from parser import parse_jsonl_lines
 from chunker import chunk_events
 from store import MemoryStore, DEFAULT_DB_PATH
 
 logger = logging.getLogger(__name__)
 
-# Fallback: Claude Code projects directory (used when transcript_path is absent)
 PROJECTS_DIR = Path.home() / ".claude" / "projects"
+INJECTED_DIR = Path.home() / ".claude-mem"
+
+import unicodedata
+
+# Keyword extraction patterns (3 systems)
+# 1. File paths/names: foo.py, src/hooks/hook.ts, package.json
+FILE_PATH_RE = re.compile(r"[\w./\\-]+\.(?:py|ts|js|json|toml|yaml|yml|md|sql|sh|css|html|tsx|jsx|go|rs|rb)\b")
+# 2. Technical identifiers: CamelCase, snake_case, kebab-case, dotted names
+IDENT_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*(?:[._-][A-Za-z0-9]+)+")  # dotted/snake/kebab
+CAMEL_RE = re.compile(r"[A-Z][a-z]+(?:[A-Z][a-z]+)+")  # CamelCase
+WORD_RE = re.compile(r"[A-Za-z_]\w{2,}", re.UNICODE)  # plain words 3+ chars
+# 3. Japanese: kanji+kana blocks
+JP_RE = re.compile(r"[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9fff]{2,}")
+
+# Stopwords (common words that don't help identify relevant chunks)
+STOPWORDS = frozenset({
+    # Japanese
+    "する", "ある", "いる", "こと", "もの", "ため", "これ", "それ", "あれ",
+    "この", "その", "から", "まで", "ここ", "そこ", "どこ", "なに", "なぜ",
+    "です", "ます", "した", "して", "される", "できる", "なる", "れる",
+    "という", "について", "として",
+    # English
+    "the", "and", "for", "that", "this", "with", "from", "have", "has",
+    "are", "was", "were", "been", "being", "not", "but", "can", "will",
+    "use", "used", "using", "get", "set", "new", "add", "run", "fix",
+    "let", "var", "true", "false", "none", "null", "undefined",
+})
 
 
 def _find_jsonl_fallback(session_id: str) -> Path | None:
@@ -167,6 +195,179 @@ def run_hook(input_data: dict, db_path: Path = DEFAULT_DB_PATH) -> dict:
         store.close()
 
 
+def _extract_keywords(text: str) -> set[str]:
+    """Extract significant keywords from text using 3 systems.
+
+    1. File paths/names (highest signal)
+    2. Technical identifiers (CamelCase, snake_case, dotted)
+    3. Japanese kanji/kana blocks
+
+    All normalized with NFKC + casefold. Stopwords excluded.
+    """
+    keywords: set[str] = set()
+
+    # Normalize
+    normalized = unicodedata.normalize("NFKC", text)
+
+    # 1. File paths (keep as-is, very high signal)
+    for m in FILE_PATH_RE.findall(normalized):
+        keywords.add(m.casefold())
+
+    # 2. Technical identifiers
+    for m in IDENT_RE.findall(normalized):
+        keywords.add(m.casefold())
+    for m in CAMEL_RE.findall(normalized):
+        keywords.add(m.casefold())
+    for m in WORD_RE.findall(normalized):
+        w = m.casefold()
+        if len(w) >= 3 and w not in STOPWORDS and not w.isdigit():
+            keywords.add(w)
+
+    # 3. Japanese blocks (3-4 grams from kanji/kana sequences, 3+ chars only)
+    for block in JP_RE.findall(normalized):
+        if block in STOPWORDS:
+            continue
+        # Full block (3+ chars)
+        if len(block) >= 3:
+            keywords.add(block)
+        # Extract 3-4 grams for longer blocks
+        if len(block) > 4:
+            for n in range(3, 5):
+                for i in range(len(block) - n + 1):
+                    gram = block[i:i+n]
+                    if gram not in STOPWORDS:
+                        keywords.add(gram)
+
+    return keywords
+
+
+def _get_last_assistant_text(jsonl_path: Path) -> str:
+    """Get the text of the last assistant message from the JSONL file."""
+    last_text = ""
+    with open(jsonl_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                raw = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if raw.get("type") != "assistant":
+                continue
+            msg = raw.get("message", {})
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                last_text = content
+            elif isinstance(content, list):
+                parts = [b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text"]
+                if parts:
+                    last_text = "\n".join(parts)
+    return last_text
+
+
+# Vote thresholds: require meaningful overlap, not single-word matches
+VOTE_MIN_OVERLAP = 3        # Minimum keyword overlap count
+VOTE_MIN_RATIO = 0.15       # Minimum overlap/total ratio (15%)
+
+
+def _extract_answer_keywords(text: str) -> set[str]:
+    """Extract keywords from the Answer part of a Q&A chunk only."""
+    # Split Q/A and use only the A portion
+    import re as _re
+    match = _re.search(r"\nA:\s*", text)
+    if match:
+        answer_part = text[match.end():]
+    else:
+        answer_part = text  # If no Q/A split, use entire text
+    return _extract_keywords(answer_part)
+
+
+def _injected_path_for(session_id: str) -> Path:
+    """Get the per-session injected file path."""
+    safe_id = session_id.replace("/", "_").replace("\\", "_")
+    return INJECTED_DIR / f"last_injected_{safe_id}.json"
+
+
+def run_implicit_vote(
+    input_data: dict,
+    db_path: Path = DEFAULT_DB_PATH,
+) -> dict:
+    """Perform implicit voting with threshold-based matching.
+
+    Reads per-session last_injected_{session_id}.json,
+    extracts A-part keywords from each injected chunk,
+    votes if overlap >= 3 or overlap/total >= 15%.
+    """
+    session_id = input_data.get("session_id", "")
+    transcript_path = input_data.get("transcript_path", "")
+
+    if not session_id:
+        return {"voted": 0, "reason": "no session_id"}
+
+    injected_file = _injected_path_for(session_id)
+    if not injected_file.exists():
+        return {"voted": 0, "reason": "no injected file for session"}
+
+    try:
+        injected = json.loads(injected_file.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {"voted": 0, "reason": "failed to read injected file"}
+
+    # Verify session_id matches
+    if injected.get("session_id") != session_id:
+        return {"voted": 0, "reason": "session_id mismatch"}
+
+    chunk_ids = injected.get("chunk_ids", [])
+    if not chunk_ids:
+        return {"voted": 0, "reason": "no injected chunks"}
+
+    # Get last assistant response text
+    if transcript_path and Path(transcript_path).exists():
+        assistant_text = _get_last_assistant_text(Path(transcript_path))
+    else:
+        assistant_text = input_data.get("last_assistant_message", "")
+
+    if not assistant_text:
+        return {"voted": 0, "reason": "no assistant text"}
+
+    assistant_keywords = _extract_keywords(assistant_text)
+    if not assistant_keywords:
+        return {"voted": 0, "reason": "no keywords in assistant response"}
+
+    store = MemoryStore(db_path=db_path)
+    voted = 0
+    try:
+        for cid in chunk_ids:
+            chunk = store.get_chunk(cid)
+            if not chunk:
+                continue
+            # Use A-part keywords only (more relevant for comparing with assistant output)
+            chunk_keywords = _extract_answer_keywords(chunk.text_content)
+            if not chunk_keywords:
+                continue
+
+            overlap = chunk_keywords & assistant_keywords
+            overlap_count = len(overlap)
+            overlap_ratio = overlap_count / len(chunk_keywords) if chunk_keywords else 0
+
+            # Threshold: overlap >= 3 OR overlap ratio >= 15%
+            if overlap_count >= VOTE_MIN_OVERLAP or overlap_ratio >= VOTE_MIN_RATIO:
+                store.increment_vote(cid)
+                voted += 1
+                logger.info(f"Voted for chunk {cid}: {overlap_count} overlaps ({overlap_ratio:.0%})")
+    finally:
+        store.close()
+
+    # Clean up per-session injected file
+    try:
+        injected_file.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+    return {"voted": voted, "total_injected": len(chunk_ids)}
+
+
 def main() -> None:
     """Entry point for Stop hook. Logs to stderr only (stdout must stay clean)."""
     logging.basicConfig(
@@ -185,6 +386,12 @@ def main() -> None:
         input_data = {}
 
     run_hook(input_data)
+
+    # Implicit voting: upvote chunks whose keywords were used by the assistant
+    try:
+        run_implicit_vote(input_data)
+    except Exception as e:
+        logger.warning(f"Implicit vote failed: {e}")
 
 
 if __name__ == "__main__":

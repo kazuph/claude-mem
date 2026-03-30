@@ -51,6 +51,58 @@ def time_decay(created_at: str, now: datetime | None = None) -> float:
     return math.exp(-LN2 * age_days / HALF_LIFE_DAYS)
 
 
+def recall_boost(vote_count: int) -> float:
+    """Calculate recall boost from implicit votes.
+
+    recall_boost = 1.0 + log(1 + vote_count) * 0.3
+    This extends the effective half-life for frequently-recalled chunks.
+    """
+    return 1.0 + math.log(1 + vote_count) * 0.3
+
+
+def _parse_datetime(iso: str) -> datetime | None:
+    """Parse an ISO datetime string, returning None on failure."""
+    try:
+        dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (ValueError, AttributeError):
+        return None
+
+
+def time_decay_with_recall(
+    created_at: str,
+    vote_count: int = 0,
+    now: datetime | None = None,
+    last_recalled_at: str = "",
+) -> float:
+    """Time decay with recall boost and recall rejuvenation.
+
+    - Uses max(created_at, last_recalled_at) as reference date
+      (recently recalled memories "rejuvenate" — appear younger)
+    - adjusted_half_life = HALF_LIFE_DAYS * recall_boost(vote_count)
+      (frequently recalled memories decay slower)
+    """
+    if now is None:
+        now = datetime.now(timezone.utc)
+
+    created = _parse_datetime(created_at)
+    if not created:
+        return 0.5
+
+    # Rejuvenation: use the more recent of created_at and last_recalled_at
+    reference = created
+    if last_recalled_at:
+        recalled = _parse_datetime(last_recalled_at)
+        if recalled and recalled > reference:
+            reference = recalled
+
+    adjusted_half_life = HALF_LIFE_DAYS * recall_boost(vote_count)
+    age_days = max(0, (now - reference).total_seconds() / 86400)
+    return math.exp(-LN2 * age_days / adjusted_half_life)
+
+
 def project_boost(result_project: str, current_project: str | None) -> float:
     """Boost results from the current project.
 
@@ -118,11 +170,11 @@ def rank_results(
     # Fuse RRF scores across all result lists
     fused_scores = fuse_rrf(*all_lists)
 
-    # Apply time decay and project boost
+    # Apply time decay (with recall boost) and project boost
     scored: list[tuple[float, SearchResult]] = []
     for chunk_id, rrf in fused_scores.items():
         r = result_map[chunk_id]
-        decay = time_decay(r.created_at, now=now)
+        decay = time_decay_with_recall(r.created_at, r.vote_count, now=now, last_recalled_at=r.last_recalled_at)
         boost = project_boost(r.project_path, current_project)
         final_score = rrf * decay * boost
         scored.append((final_score, r))
